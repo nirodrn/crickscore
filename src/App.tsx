@@ -394,11 +394,11 @@ function App() {
 
     return (
       <div className="min-h-screen bg-transparent">
-        {match && matchStarted ? (
+  {match ? (
           <div className="p-4">
             <ScoreDisplay match={match} overlayMode={true} />
           </div>
-        ) : (
+  ) : (
           <div className="flex items-center justify-center min-h-screen">
             <div className="bg-black/80 text-white p-8 rounded-lg text-center">
               <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />

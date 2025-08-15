@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MatchState } from '../types';
 import { CricketScorer } from '../cricketUtils';
 import { firebaseService, getOverlaySettingsFromFirebase, getOverlaySettingsForMatch } from '../firebase';
+import { LocalStorageManager } from '../utils/localStorage';
 import { TrendingUp, Users, BarChart3, Award } from 'lucide-react';
 
 
@@ -13,7 +14,7 @@ interface ScoreDisplayProps {
 }
 
 export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, overlayMode = false, forcePanel }) => {
-  const [overlaySettings, setOverlaySettings] = useState<any>(null);
+  const [overlaySettings, setOverlaySettings] = useState<any>(LocalStorageManager.getOverlaySettings());
   // Load overlay settings from Firebase
   useEffect(() => {
     const fetchSettings = async () => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { firebaseService } from '../firebase';
-import { User, Mail, Lock, UserPlus } from 'lucide-react';
+import { User, Mail, Lock } from 'lucide-react';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -8,7 +8,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuth }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,9 +33,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuth }) => {
     setError('');
 
     try {
-      const user = isLogin 
-        ? await firebaseService.signInWithEmail(email, password)
-        : await firebaseService.signUpWithEmail(email, password);
+      // Sign-up temporarily disabled: always attempt sign-in only
+      const user = await firebaseService.signInWithEmail(email, password);
       onAuth(user);
       onClose();
     } catch (err: any) {
@@ -111,17 +110,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuth }) => {
               disabled={loading}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center space-x-2 disabled:opacity-50"
             >
-              {isLogin ? <Mail className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
-              <span>{isLogin ? 'Sign In' : 'Sign Up'}</span>
+              <Mail className="h-5 w-5" />
+              <span>Sign In</span>
             </button>
           </form>
 
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="w-full text-sm text-blue-600 hover:text-blue-700"
-          >
-            {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-          </button>
+          {/* Sign-up temporarily disabled: toggle removed */}
         </div>
 
         <button

@@ -33,15 +33,15 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     fiveWickets: ''
   });
 
+  // Hardcoded ImgBB API key
+  const IMGBB_API_KEY = 'd103f36ca874ca985030f7e11d1f5a41';
+
   const uploadPlayerImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('image', file);
-  const apiKey = import.meta.env.VITE_IMGBB_KEY || '';
-  if (!apiKey) console.warn('VITE_IMGBB_KEY is not set. Image upload may fail.');
-  formData.append('key', apiKey);
 
     try {
-      const response = await fetch('https://api.imgbb.com/1/upload', {
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
         method: 'POST',
         body: formData,
       });
@@ -70,12 +70,9 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
   const uploadLogo = async (file: File, teamId: 'A' | 'B') => {
     const formData = new FormData();
     formData.append('image', file);
-  const apiKey = import.meta.env.VITE_IMGBB_KEY || '';
-  if (!apiKey) console.warn('VITE_IMGBB_KEY is not set. Logo upload may fail.');
-  formData.append('key', apiKey);
 
     try {
-      const response = await fetch('https://api.imgbb.com/1/upload', {
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
         method: 'POST',
         body: formData,
       });
@@ -122,8 +119,7 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     }
 
     const updatedMatch = { ...match };
-    const team = teamId === 'A' ? updatedMatch.teamA : updatedMatch.teamB;
-    
+
     const newPlayer: PlayerRef = {
       id: `${teamId}_${Date.now()}`,
       name: newPlayerName,
@@ -133,8 +129,19 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
       canBat: selectedRoles.includes('Batter') || selectedRoles.length === 0,
       canKeep: selectedRoles.includes('Wicketkeeper')
     };
-
-    team.players = [...(team.players || []), newPlayer];
+    // Assign a new team object back onto the match to avoid accidental
+    // shared references to nested objects (shallow clone of match above).
+    if (teamId === 'A') {
+      updatedMatch.teamA = {
+        ...updatedMatch.teamA,
+        players: [...(updatedMatch.teamA?.players || []), newPlayer]
+      };
+    } else {
+      updatedMatch.teamB = {
+        ...updatedMatch.teamB,
+        players: [...(updatedMatch.teamB?.players || []), newPlayer]
+      };
+    }
     onUpdateMatch(updatedMatch);
     setNewPlayerName('');
     setSelectedRoles([]);

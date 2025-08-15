@@ -137,15 +137,24 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     if (!newPlayerName.trim()) return;
 
     const updatedMatch = { ...match };
-    const team = selectedTeamForNewPlayer === 'A' ? updatedMatch.teamA : updatedMatch.teamB;
-    
     const newPlayer: PlayerRef = {
       id: `${selectedTeamForNewPlayer}_${Date.now()}`,
       name: newPlayerName,
       roles: [],
     };
 
-    team.players = [...(team.players || []), newPlayer];
+    if (selectedTeamForNewPlayer === 'A') {
+      updatedMatch.teamA = {
+        ...updatedMatch.teamA,
+        players: [...(updatedMatch.teamA?.players || []), newPlayer]
+      };
+    } else {
+      updatedMatch.teamB = {
+        ...updatedMatch.teamB,
+        players: [...(updatedMatch.teamB?.players || []), newPlayer]
+      };
+    }
+
     onUpdateMatch(updatedMatch);
     setNewPlayerName('');
     setShowPlayerManagement(false);
@@ -153,8 +162,17 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
 
   const handleRemovePlayer = (teamId: 'A' | 'B', playerId: string) => {
     const updatedMatch = { ...match };
-    const team = teamId === 'A' ? updatedMatch.teamA : updatedMatch.teamB;
-    team.players = (team.players || []).filter(p => p.id !== playerId);
+    if (teamId === 'A') {
+      updatedMatch.teamA = {
+        ...updatedMatch.teamA,
+        players: (updatedMatch.teamA?.players || []).filter(p => p.id !== playerId)
+      };
+    } else {
+      updatedMatch.teamB = {
+        ...updatedMatch.teamB,
+        players: (updatedMatch.teamB?.players || []).filter(p => p.id !== playerId)
+      };
+    }
     onUpdateMatch(updatedMatch);
   };
 

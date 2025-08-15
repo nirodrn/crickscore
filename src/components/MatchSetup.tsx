@@ -15,6 +15,9 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
   const [playerImageFile, setPlayerImageFile] = useState<File | null>(null);
   const [showPlayerStats, setShowPlayerStats] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerRef | null>(null);
+  const [selectedStrikerId, setSelectedStrikerId] = useState('');
+  const [selectedNonStrikerId, setSelectedNonStrikerId] = useState('');
+  const [selectedBowlerId, setSelectedBowlerId] = useState('');
   const [playerCareerData, setPlayerCareerData] = useState({
     matchesPlayed: '',
     totalRuns: '',
@@ -178,7 +181,40 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
            (teamBName || match.teamB?.name) && 
            (match.teamA?.players?.length || 0) >= 2 && 
            (match.teamB?.players?.length || 0) >= 2 &&
-           match.tossWinner && match.elected;
+           match.tossWinner && match.elected &&
+           selectedStrikerId && selectedNonStrikerId && selectedBowlerId;
+  };
+
+  const getBattingTeamPlayers = () => {
+    if (!match.tossWinner || !match.elected) return [];
+    
+    const battingFirst = (match.tossWinner === 'A' && match.elected === 'bat') || 
+                        (match.tossWinner === 'B' && match.elected === 'bowl') ? 'A' : 'B';
+    
+    return battingFirst === 'A' ? match.teamA.players : match.teamB.players;
+  };
+
+  const getBowlingTeamPlayers = () => {
+    if (!match.tossWinner || !match.elected) return [];
+    
+    const battingFirst = (match.tossWinner === 'A' && match.elected === 'bat') || 
+                        (match.tossWinner === 'B' && match.elected === 'bowl') ? 'A' : 'B';
+    
+    const bowlingFirst = battingFirst === 'A' ? 'B' : 'A';
+    return bowlingFirst === 'A' ? match.teamA.players : match.teamB.players;
+  };
+
+  const handleStartMatch = () => {
+    if (!canStartMatch()) return;
+    
+    // Pass the selected players to the parent component
+    const updatedMatch = { ...match };
+    updatedMatch.innings1.strikerId = selectedStrikerId;
+    updatedMatch.innings1.nonStrikerId = selectedNonStrikerId;
+    updatedMatch.innings1.bowlerId = selectedBowlerId;
+    
+    onUpdateMatch(updatedMatch);
+    onStartMatch();
   };
 
   const openPlayerStats = (player: PlayerRef) => {
@@ -293,8 +329,75 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
             </div>
           </div>
 
+          {/* Opening Players Selection */}
+          {match.tossWinner && match.elected && (
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-700">Select Opening Players</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Opening Striker
+                  </label>
+                  <select
+                    value={selectedStrikerId}
+                    onChange={(e) => setSelectedStrikerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Striker...</option>
+                    {getBattingTeamPlayers().map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Opening Non-Striker
+                  </label>
+                  <select
+                    value={selectedNonStrikerId}
+                    onChange={(e) => setSelectedNonStrikerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Non-Striker...</option>
+                    {getBattingTeamPlayers()
+                      .filter(player => player.id !== selectedStrikerId)
+                      .map((player) => (
+                        <option key={player.id} value={player.id}>
+                          {player.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Opening Bowler
+                </label>
+                <select
+                  value={selectedBowlerId}
+                  onChange={(e) => setSelectedBowlerId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Bowler...</option>
+                  {getBowlingTeamPlayers()
+                    .filter(player => player.canBowl !== false)
+                    .map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <button
-            onClick={onStartMatch}
+            onClick={handleStartMatch}
             disabled={!canStartMatch()}
             className={`w-full py-3 px-4 rounded-md font-medium ${
               canStartMatch()

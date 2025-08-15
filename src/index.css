@@ -257,6 +257,26 @@ body {
   }
 }
 
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-out;
 }
@@ -289,6 +309,14 @@ body {
 
 .animate-slide-in-right {
   animation: slide-in-right 0.5s ease-out;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+.animate-fadeOut {
+  animation: fadeOut 0.3s ease-out;
 }
 
 /* Enhanced button hover effects */
@@ -421,4 +449,79 @@ body {
     0 0 20px rgba(59, 130, 246, 0.3),
     0 0 40px rgba(59, 130, 246, 0.2),
     0 0 60px rgba(59, 130, 246, 0.1);
+}
+
+/* Free hit blinking animation */
+@keyframes freeHitBlink {
+  0%, 50% { border-color: #10b981; }
+  51%, 100% { border-color: transparent; }
+}
+
+.free-hit-blink {
+  animation: freeHitBlink 1s infinite;
+  border-width: 2px;
+  border-style: solid;
+}
+
+/* Ball indicator enhanced styles */
+.ball-indicator {
+  @apply flex items-center justify-center text-sm font-bold transition-all duration-200 rounded-full;
+}
+
+.ball-indicator.dot {
+  @apply bg-gray-500 text-white;
+}
+
+.ball-indicator.runs {
+  @apply bg-blue-500 text-white;
+}
+
+.ball-indicator.boundary4 {
+  @apply bg-green-500 text-white;
+}
+
+.ball-indicator.boundary6 {
+  @apply bg-purple-500 text-white;
+}
+
+.ball-indicator.wicket {
+  @apply bg-red-500 text-white;
+}
+
+.ball-indicator.wide {
+  @apply bg-blue-400 text-white;
+}
+
+.ball-indicator.noball {
+  @apply bg-yellow-500 text-black;
+}
+
+.ball-indicator.bye {
+  @apply bg-orange-500 text-white;
+}
+
+.ball-indicator.legbye {
+  @apply bg-orange-400 text-white;
+}
+
+/* Cricket overlay specific classes */
+.cricket-footer {
+  /* Default footer styles - can be overridden by custom CSS */
+}
+
+.cricket-panel {
+  /* Default panel styles - can be overridden by custom CSS */
+}
+
+/* Over display styles */
+.over-display {
+  @apply flex items-center space-x-2 p-3 bg-gray-50 rounded-lg;
+}
+
+.over-number {
+  @apply text-sm font-semibold text-gray-700 min-w-0;
+}
+
+.over-balls {
+  @apply flex space-x-1;
 }

@@ -1,4 +1,4 @@
-import { MatchState, InningsState, BallEvent, PlayerRef, Team } from './types';
+import { MatchState, InningsState, BallEvent, PlayerRef, Team, BallDisplayItem } from './types';
 
 export class CricketScorer {
   static rotateStrikeIfOdd(runs: number, innings: InningsState): void {
@@ -372,18 +372,153 @@ export class CricketScorer {
     return false;
   }
 
-  static getLastSixBalls(innings: InningsState): string[] {
+  static getLastSixBalls(innings: InningsState): BallDisplayItem[] {
     const recentEvents = innings.events
-      .filter(e => e.legalBallInOver !== undefined)
+      .filter(e => e.kind !== 'dead')
       .slice(-6);
 
     return recentEvents.map(event => {
-      if (event.kind === 'wicket') return 'W';
-      if (event.kind === 'boundary4') return '4';
-      if (event.kind === 'boundary6') return '6';
-      if (event.runsBat === 0 && event.kind !== 'bye' && event.kind !== 'legbye') return '•';
-      return String(event.runsBat || event.runsExtra || 0);
+      const item: BallDisplayItem = {
+        value: '',
+        type: 'dot',
+        isFreeHit: event.freeHitBefore,
+        runs: event.runsBat || event.runsExtra || 0
+      };
+
+      switch (event.kind) {
+        case 'wicket':
+          item.value = 'W';
+          item.type = 'wicket';
+          break;
+        case 'boundary4':
+          item.value = '4';
+          item.type = 'boundary4';
+          break;
+        case 'boundary6':
+          item.value = '6';
+          item.type = 'boundary6';
+          break;
+        case 'wide':
+          item.value = `w${event.runsExtra && event.runsExtra > 1 ? event.runsExtra : ''}`;
+          item.type = 'wide';
+          break;
+        case 'noball':
+          item.value = `nb${event.runsBat ? event.runsBat : ''}`;
+          item.type = 'noball';
+          break;
+        case 'bye':
+          item.value = `b${event.runsExtra || 1}`;
+          item.type = 'bye';
+          break;
+        case 'legbye':
+          item.value = `lb${event.runsExtra || 1}`;
+          item.type = 'legbye';
+          break;
+        case 'run':
+          if (event.runsBat === 0) {
+            item.value = '•';
+            item.type = 'dot';
+          } else {
+            item.value = String(event.runsBat);
+            item.type = 'run';
+          }
+          break;
+        default:
+          item.value = '•';
+          item.type = 'dot';
+      }
+
+      return item;
     });
+  }
+
+  static getCurrentOverBalls(innings: InningsState): BallDisplayItem[] {
+    const currentOverEvents = innings.events.filter(e => 
+      e.overNumber === innings.overNumber && e.kind !== 'dead'
+    );
+
+    return currentOverEvents.map(event => {
+      const item: BallDisplayItem = {
+        value: '',
+        type: 'dot',
+        isFreeHit: event.freeHitBefore,
+        runs: event.runsBat || event.runsExtra || 0
+      };
+
+      switch (event.kind) {
+        case 'wicket':
+          item.value = 'W';
+          item.type = 'wicket';
+          break;
+        case 'boundary4':
+          item.value = '4';
+          item.type = 'boundary4';
+          break;
+        case 'boundary6':
+          item.value = '6';
+          item.type = 'boundary6';
+          break;
+        case 'wide':
+          item.value = `w${event.runsExtra && event.runsExtra > 1 ? event.runsExtra : ''}`;
+          item.type = 'wide';
+          break;
+        case 'noball':
+          item.value = `nb${event.runsBat ? event.runsBat : ''}`;
+          item.type = 'noball';
+          break;
+        case 'bye':
+          item.value = `b${event.runsExtra || 1}`;
+          item.type = 'bye';
+          break;
+        case 'legbye':
+          item.value = `lb${event.runsExtra || 1}`;
+          item.type = 'legbye';
+          break;
+        case 'run':
+          if (event.runsBat === 0) {
+            item.value = '•';
+            item.type = 'dot';
+          } else {
+            item.value = String(event.runsBat);
+            item.type = 'run';
+          }
+          break;
+        default:
+          item.value = '•';
+          item.type = 'dot';
+      }
+
+      return item;
+    });
+  }
+
+  static getMatchResult(match: MatchState): string {
+    if (!match.innings1.isComplete) {
+      return 'Match in Progress';
+    }
+
+    if (match.currentInnings === 1) {
+      return 'First Innings Complete';
+    }
+
+    if (!match.innings2 || !match.innings2.isComplete) {
+      return 'Second Innings in Progress';
+    }
+
+    const team1 = match.innings1.battingTeam === 'A' ? match.teamA : match.teamB;
+    const team2 = match.innings2.battingTeam === 'A' ? match.teamA : match.teamB;
+    const team1Name = team1.name || 'Team A';
+    const team2Name = team2.name || 'Team B';
+
+    if (team1.score > team2.score) {
+      const margin = team1.score - team2.score;
+      return `${team1Name} won by ${margin} runs`;
+    } else if (team2.score > team1.score) {
+      const wicketsRemaining = 10 - team2.wickets;
+      return `${team2Name} won by ${wicketsRemaining} wickets`;
+    } else {
+      return 'Match Tied';
+    }
   }
 
   static undoLastEvent(match: MatchState): boolean {
@@ -398,5 +533,11 @@ export class CricketScorer {
     // For now, we'll just remove the event from the history
     
     return true;
+  }
+
+  static updateMatchResult(match: MatchState): void {
+    match.result = this.getMatchResult(match);
+    match.isComplete = match.innings1.isComplete && 
+      (match.currentInnings === 1 || (match.innings2?.isComplete ?? false));
   }
 }

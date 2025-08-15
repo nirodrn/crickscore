@@ -112,22 +112,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const updatedMatch = { ...match };
     const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
     
-    // If changing mid-over, complete the current over first
-    if (currentInnings.legalBallsInCurrentOver > 0 && currentInnings.legalBallsInCurrentOver < 6) {
-      // Add event for bowler change mid-over
-      const event: BallEvent = {
-        id: `${Date.now()}_${Math.random()}`,
-        overNumber: currentInnings.overNumber,
-        kind: 'dead',
-        strikerIdBefore: currentInnings.strikerId,
-        nonStrikerIdBefore: currentInnings.nonStrikerId,
-        bowlerId: currentInnings.bowlerId,
-        freeHitBefore: currentInnings.freeHit,
-        timestamp: Date.now()
-      };
-      currentInnings.events.push(event);
-    }
-    
+    // Allow bowler change at any time
     currentInnings.bowlerId = playerId;
     onUpdateMatch(updatedMatch);
     setShowBowlerModal(false);
@@ -237,6 +222,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
             <button onClick={() => handleRunClick(2)} className="score-btn">2</button>
             <button onClick={() => handleRunClick(3)} className="score-btn">3</button>
             <button onClick={() => handleRunClick(4)} className="score-btn boundary">4</button>
+            <button onClick={() => handleRunClick(5)} className="score-btn">5</button>
             <button onClick={() => handleRunClick(6)} className="score-btn boundary">6</button>
             <button onClick={handleDotBall} className="score-btn dot">•</button>
           </div>
@@ -287,7 +273,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
             className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded text-sm"
           >
             <Users className="h-4 w-4" />
-            <span>Change Bowler</span>
+            <span>Bowler</span>
           </button>
           
           <button
@@ -296,6 +282,14 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
           >
             <ArrowLeftRight className="h-4 w-4" />
             <span>Switch Strike</span>
+          </button>
+
+          <button
+            onClick={() => setShowBatsmanModal(true)}
+            className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded text-sm"
+          >
+            <Users className="h-4 w-4" />
+            <span>Change Batsman</span>
           </button>
           
           <button
@@ -485,9 +479,24 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
       {showBatsmanModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">Select New Batsman</h3>
+            <h3 className="text-lg font-semibold mb-4">Change Batsman</h3>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Select which batsman to replace and choose the new batsman:
+              </p>
+            </div>
             
             <div className="space-y-2">
+              <div className="bg-gray-50 p-3 rounded mb-4">
+                <h4 className="font-medium mb-2">Current Batsmen:</h4>
+                <div className="space-y-1 text-sm">
+                  <div>Striker: {striker?.name}</div>
+                  <div>Non-Striker: {nonStriker?.name}</div>
+                </div>
+              </div>
+              
+              <h4 className="font-medium mb-2">Available Batsmen:</h4>
               {availableBatsmen.map((player) => (
                 <button
                   key={player.id}

@@ -7,6 +7,7 @@ import { ScoreControls } from './components/ScoreControls';
 import { ScoreDisplay } from './components/ScoreDisplay';
 import { AuthModal } from './components/AuthModal';
 import { OverlayControlPanel } from './components/OverlayControlPanel';
+import { StylePanel } from './components/StylePanel';
 import { Settings, Monitor, Users, Trophy, LogOut, Plus, Eye } from 'lucide-react';
 import { PanelRouter } from './components/PanelRouter';
 
@@ -22,6 +23,7 @@ function App() {
   const [showMatchList, setShowMatchList] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
+  const [showStylePanel, setShowStylePanel] = useState(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
 
   // Real-time subscription for overlay mode
@@ -270,6 +272,9 @@ function App() {
     setMatch(updatedMatch);
     updatedMatch.updatedAt = Date.now();
     
+    // Update match result
+    CricketScorer.updateMatchResult(updatedMatch);
+    
     // Always save to localStorage immediately
     LocalStorageManager.saveCurrentMatch(updatedMatch);
     LocalStorageManager.cacheMatch(updatedMatch.id, updatedMatch);
@@ -492,6 +497,13 @@ function App() {
                   >
                     <Settings className="h-4 w-4" />
                     <span>Panels</span>
+                  </button>
+                  <button
+                    onClick={() => setShowStylePanel(true)}
+                    className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>Styles</span>
                   </button>
                   <button
                     onClick={createNewMatch}
@@ -844,6 +856,14 @@ function App() {
         <AuthModal 
           onClose={() => setShowAuthModal(false)} 
           onAuth={setUser}
+        />
+      )}
+
+      {/* Style Panel */}
+      {showStylePanel && (
+        <StylePanel 
+          onClose={() => setShowStylePanel(false)}
+          matchId={match?.id}
         />
       )}
     </div>

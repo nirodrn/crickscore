@@ -1,3 +1,5 @@
+import { OverlayStyleSettings } from '../types';
+
 // Local Storage utility for cricket scoring app
 export class LocalStorageManager {
   private static readonly KEYS = {
@@ -188,7 +190,23 @@ export class LocalStorageManager {
         teamAColor: '#3b82f6',
         teamBColor: '#ef4444',
         teamAOpacity: 0.9,
-        teamBOpacity: 0.9
+        teamBOpacity: 0.9,
+        styleSettings: {
+          footerBgColor: '#1e3a8a',
+          footerTextColor: '#ffffff',
+          footerBorderRadius: 8,
+          footerPadding: 16,
+          footerTextAlignment: 'center' as const,
+          footerGradient: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+          panelBgColor: '#1e3a8a',
+          panelTextColor: '#ffffff',
+          panelBorderRadius: 12,
+          panelPadding: 24,
+          panelGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+          ballIndicatorSize: 32,
+          ballIndicatorSpacing: 8,
+          customCSS: ''
+        }
       };
     }
   }

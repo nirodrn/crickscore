@@ -77,6 +77,30 @@ export interface BallEvent {
   timestamp: number;
 }
 
+export interface BallDisplayItem {
+  value: string; // "1", "4", "W", "nb", "w", "."
+  type: 'run' | 'dot' | 'boundary4' | 'boundary6' | 'wicket' | 'noball' | 'wide' | 'bye' | 'legbye';
+  isFreeHit: boolean;
+  runs?: number;
+}
+
+export interface OverlayStyleSettings {
+  footerBgColor: string;
+  footerTextColor: string;
+  footerBorderRadius: number;
+  footerPadding: number;
+  footerTextAlignment: 'left' | 'center' | 'right';
+  footerGradient?: string;
+  panelBgColor: string;
+  panelTextColor: string;
+  panelBorderRadius: number;
+  panelPadding: number;
+  panelGradient?: string;
+  ballIndicatorSize: number;
+  ballIndicatorSpacing: number;
+  customCSS?: string;
+}
+
 export interface InningsState {
   battingTeam: 'A' | 'B';
   bowlingTeam: 'A' | 'B';
@@ -105,6 +129,8 @@ export interface MatchState {
   currentInnings: 1 | 2;
   innings1: InningsState;
   innings2?: InningsState;
+  result?: string;
+  isComplete?: boolean;
   createdAt: number;
   updatedAt: number;
 }

@@ -28,13 +28,29 @@ export async function getOverlaySettingsFromFirebase(userId: string): Promise<an
     teamBColor: '#ef4444',
     teamAOpacity: 0.9,
     teamBOpacity: 0.9,
-    hideAllPanels: false
+    hideAllPanels: false,
+    styleSettings: {
+      footerBgColor: '#1e3a8a',
+      footerTextColor: '#ffffff',
+      footerBorderRadius: 8,
+      footerPadding: 16,
+      footerTextAlignment: 'center' as const,
+      footerGradient: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+      panelBgColor: '#1e3a8a',
+      panelTextColor: '#ffffff',
+      panelBorderRadius: 12,
+      panelPadding: 24,
+      panelGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+      ballIndicatorSize: 32,
+      ballIndicatorSpacing: 8,
+      customCSS: ''
+    }
   };
 }
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, onValue, off, push } from 'firebase/database';
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { MatchState, User } from './types';
+import { MatchState, User, OverlayStyleSettings } from './types';
 import { LocalStorageManager } from './utils/localStorage';
 
 // Helper function to normalize match data from Firebase

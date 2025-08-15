@@ -323,10 +323,17 @@ export async function getPublicMatchFromFirebase(matchId: string): Promise<Match
 export function subscribeToPublicMatch(matchId: string, callback: (match: MatchState | null) => void): () => void {
   const matchRef = ref(database, `public_matches/${matchId}`);
 
+  // Debug: log when public subscription receives updates
   const unsubscribe = onValue(matchRef, (snapshot) => {
     const match = snapshot.exists() ? normalizeMatchState(snapshot.val()) : null;
     if (match) {
+      // Cache and log the update for troubleshooting
       LocalStorageManager.cacheMatch(matchId, match);
+      // eslint-disable-next-line no-console
+      console.debug('[firebase] public match update', { matchId, updatedAt: match.updatedAt });
+    } else {
+      // eslint-disable-next-line no-console
+      console.debug('[firebase] public match snapshot empty', { matchId });
     }
     callback(match);
   }, (error) => {
@@ -376,7 +383,10 @@ export async function publishMatchToPublic(match: MatchState): Promise<void> {
   try {
     const publicRef = ref(database, `public_matches/${match.id}`);
     const payload = removeUndefined({ ...match, updatedAt: Date.now() });
-    await set(publicRef, payload);
+  // Debug: log publish intent
+  // eslint-disable-next-line no-console
+  console.debug('[firebase] publishing match to public_matches', { matchId: match.id, updatedAt: payload.updatedAt });
+  await set(publicRef, payload);
   } catch (error) {
     console.error('Failed to publish match to public_matches:', error);
     throw error;

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { MatchState, BallDisplayItem } from '../types';
 import { CricketScorer } from '../cricketUtils';
-import { firebaseService, getOverlaySettingsFromFirebase, getOverlaySettingsForMatch } from '../firebase';
+import { firebaseService, getOverlaySettingsFromFirebase, getOverlaySettingsForMatch, subscribeToPublicMatch } from '../firebase';
 import { LocalStorageManager } from '../utils/localStorage';
 import { TrendingUp, Users, BarChart3, Award, Target, Clock, Zap, Activity } from 'lucide-react';
-
-
+import { PlayerStatsPanel } from './PlayerStatsPanel';
 
 interface ScoreDisplayProps {
   match: MatchState;
@@ -13,11 +12,46 @@ interface ScoreDisplayProps {
   forcePanel?: string;
 }
 
-export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, overlayMode = false, forcePanel }) => {
+export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match: initialMatch, overlayMode = false, forcePanel }) => {
+  const [match, setMatch] = useState<MatchState>(initialMatch);
   const [overlaySettings, setOverlaySettings] = useState<any>(LocalStorageManager.getOverlaySettings());
   const [currentPanelTrigger, setCurrentPanelTrigger] = useState<any>({});
+  
   // Ensure style settings is always available to prevent runtime ReferenceError
   const styleSettings = overlaySettings?.styleSettings || {};
+
+  // Real-time updates for overlay mode
+  useEffect(() => {
+    // Subscribe to realtime updates for the match overlay. Use the incoming prop id
+    // (initialMatch) rather than the internal `match` state so the listener is
+    // attached to the correct document even before local state updates.
+    if (!overlayMode || !initialMatch?.id) return;
+
+    const matchId = initialMatch.id;
+    // Debug log to help troubleshoot missing updates in other browsers
+    // (will show whether subscription is being created and which path is used)
+    // eslint-disable-next-line no-console
+    console.debug('[ScoreDisplay] subscribing to match updates', { overlayMode, matchId });
+
+    const user = firebaseService.getCurrentUser?.();
+    if (user) {
+      // Authenticated user - subscribe to private match
+      const unsubscribe = firebaseService.subscribeToMatch(matchId, (updatedMatch) => {
+        if (updatedMatch) {
+          setMatch(updatedMatch);
+        }
+      });
+      return unsubscribe;
+    } else {
+      // No user - subscribe to public match
+      const unsubscribePublic = subscribeToPublicMatch(matchId, (updatedMatch) => {
+        if (updatedMatch) {
+          setMatch(updatedMatch);
+        }
+      });
+      return unsubscribePublic;
+    }
+  }, [overlayMode, initialMatch?.id]);
 
   // Load overlay settings from Firebase and listen for changes
   useEffect(() => {
@@ -128,9 +162,6 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
   const currentOverBalls = CricketScorer.getCurrentOverBalls(innings);
   const matchResult = CricketScorer.getMatchResult(match);
 
-  // Optionally, you can add a Firebase listener for real-time updates if needed
-  // For now, overlaySettings will update only on mount or manual refresh
-
   const showPanel = (panelType: string) => {
     if (panelTimer) clearTimeout(panelTimer);
     
@@ -187,148 +218,18 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
 
     switch (panelType) {
       case 'playerStats':
-        return (
-          <div className={`fixed inset-0 z-50 flex items-center justify-center p-8 ${panelAnimation}`} style={panelStyle}>
-            <div className="panel-card bg-white/10 backdrop-blur-xl rounded-3xl p-12 max-w-6xl w-full">
-              <div className="text-center mb-12">
-                <div className="relative">
-                  <Users className="h-20 w-20 mx-auto mb-6 text-white animate-pulse" />
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-400 rounded-full animate-ping"></div>
-                </div>
-                <h2 className="text-6xl font-bold mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-                  PLAYER STATISTICS
-                </h2>
-                <div className="text-2xl opacity-80">{battingTeam.name} vs {bowlingTeam.name}</div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-12">
-                {/* Striker */}
-                <div className="text-center">
-                  <div className="bg-white/20 rounded-2xl p-8 transform hover:scale-105 transition-all duration-300 border border-green-400/30">
-                    <div className="flex items-center justify-center mb-4">
-                      <Target className="h-8 w-8 text-green-400 mr-2 animate-spin-slow" />
-                      <div className="text-green-400 text-xl font-bold">STRIKER</div>
-                    </div>
-                    <div className="text-3xl font-bold mb-4">{striker?.name || 'N/A'}</div>
-                    <div className="space-y-4 text-xl">
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Runs:</span>
-                        <span className="font-bold text-2xl text-green-400">{striker?.battingStats?.runs || 0}</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Balls:</span>
-                        <span className="font-bold text-2xl">{striker?.battingStats?.balls || 0}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <div className="text-sm opacity-80">4s</div>
-                          <div className="font-bold text-xl text-blue-400">{striker?.battingStats?.fours || 0}</div>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <div className="text-sm opacity-80">6s</div>
-                          <div className="font-bold text-xl text-purple-400">{striker?.battingStats?.sixes || 0}</div>
-                        </div>
-                      </div>
-                      {striker?.battingStats?.balls && striker.battingStats.balls > 0 && (
-                        <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-3">
-                          <div className="text-sm opacity-80">Strike Rate</div>
-                          <div className="font-bold text-2xl text-yellow-400">
-                            {((striker.battingStats.runs / striker.battingStats.balls) * 100).toFixed(1)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Non-Striker */}
-                <div className="text-center">
-                  <div className="bg-white/20 rounded-2xl p-8 transform hover:scale-105 transition-all duration-300 border border-blue-400/30">
-                    <div className="flex items-center justify-center mb-4">
-                      <Users className="h-8 w-8 text-blue-400 mr-2" />
-                      <div className="text-blue-400 text-xl font-bold">NON-STRIKER</div>
-                    </div>
-                    <div className="text-3xl font-bold mb-4">{nonStriker?.name || 'N/A'}</div>
-                    <div className="space-y-4 text-xl">
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Runs:</span>
-                        <span className="font-bold text-2xl text-blue-400">{nonStriker?.battingStats?.runs || 0}</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Balls:</span>
-                        <span className="font-bold text-2xl">{nonStriker?.battingStats?.balls || 0}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <div className="text-sm opacity-80">4s</div>
-                          <div className="font-bold text-xl text-blue-400">{nonStriker?.battingStats?.fours || 0}</div>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-2 text-center">
-                          <div className="text-sm opacity-80">6s</div>
-                          <div className="font-bold text-xl text-purple-400">{nonStriker?.battingStats?.sixes || 0}</div>
-                        </div>
-                      </div>
-                      {nonStriker?.battingStats?.balls && nonStriker.battingStats.balls > 0 && (
-                        <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg p-3">
-                          <div className="text-sm opacity-80">Strike Rate</div>
-                          <div className="font-bold text-2xl text-yellow-400">
-                            {((nonStriker.battingStats.runs / nonStriker.battingStats.balls) * 100).toFixed(1)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bowler */}
-                <div className="text-center">
-                  <div className="bg-white/20 rounded-2xl p-8 transform hover:scale-105 transition-all duration-300 border border-red-400/30">
-                    <div className="flex items-center justify-center mb-4">
-                      <Zap className="h-8 w-8 text-red-400 mr-2 animate-bounce" />
-                      <div className="text-red-400 text-xl font-bold">BOWLER</div>
-                    </div>
-                    <div className="text-3xl font-bold mb-4">{bowler?.name || 'N/A'}</div>
-                    <div className="space-y-4 text-xl">
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Overs:</span>
-                        <span className="font-bold text-2xl text-red-400">
-                          {Math.floor((bowler?.bowlingStats?.balls || 0) / 6)}.{(bowler?.bowlingStats?.balls || 0) % 6}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Runs:</span>
-                        <span className="font-bold text-2xl">{bowler?.bowlingStats?.runs || 0}</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/10 rounded-lg p-3">
-                        <span>Wickets:</span>
-                        <span className="font-bold text-2xl text-red-400">{bowler?.bowlingStats?.wickets || 0}</span>
-                      </div>
-                      {bowler?.bowlingStats?.balls && bowler.bowlingStats.balls > 0 && (
-                        <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg p-3">
-                          <div className="text-sm opacity-80">Economy Rate</div>
-                          <div className="font-bold text-2xl text-yellow-400">
-                            {((bowler.bowlingStats.runs / bowler.bowlingStats.balls) * 6).toFixed(2)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+        return <PlayerStatsPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
 
       case 'runRate':
         return (
           <div className={`fixed inset-0 z-50 flex items-center justify-center p-8 ${panelAnimation}`} style={panelStyle}>
-            <div className="panel-card bg-white/10 backdrop-blur-xl rounded-3xl p-12 max-w-5xl w-full">
+      <div className="panel-card bg-white/50 backdrop-blur-3xl rounded-3xl p-12 max-w-5xl w-full">
               <div className="text-center mb-12">
                 <div className="relative">
                   <BarChart3 className="h-20 w-20 mx-auto mb-6 text-white animate-pulse" />
                   <Activity className="h-8 w-8 absolute -bottom-2 -right-2 text-green-400 animate-bounce" />
                 </div>
-                <h2 className="text-6xl font-bold mb-4 bg-gradient-to-r from-white to-green-200 bg-clip-text text-transparent">
+        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-white to-green-200 bg-clip-text text-transparent">
                   RUN RATE ANALYSIS
                 </h2>
               </div>
@@ -336,48 +237,106 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
               {/* Run Rate Chart Visualization */}
               <div className="mb-12">
                 <div className="bg-white/10 rounded-2xl p-8">
-                  <h3 className="text-2xl font-bold mb-6 text-center">Run Rate Progression</h3>
-                  <div className="relative h-32 bg-white/5 rounded-lg overflow-hidden">
-                    {/* Animated Chart Lines */}
-                    <svg className="w-full h-full" viewBox="0 0 400 120">
-                      <defs>
-                        <linearGradient id="runRateGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.8"/>
-                          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8"/>
-                        </linearGradient>
-                      </defs>
-                      
-                      {/* Grid Lines */}
-                      {[20, 40, 60, 80, 100].map((y) => (
-                        <line key={y} x1="0" y1={y} x2="400" y2={y} stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
-                      ))}
-                      
-                      {/* Current Run Rate Line */}
-                      <path
-                        d={`M 0 ${120 - (currentRunRate * 8)} L 400 ${120 - (currentRunRate * 8)}`}
-                        stroke="url(#runRateGradient)"
-                        strokeWidth="3"
-                        fill="none"
-                        className="animate-drawLine"
-                      />
-                      
-                      {/* Required Run Rate Line (if applicable) */}
-                      {match.currentInnings === 2 && innings.target && (
-                        <path
-                          d={`M 0 ${120 - (requiredRunRate * 8)} L 400 ${120 - (requiredRunRate * 8)}`}
-                          stroke="#ef4444"
-                          strokeWidth="3"
-                          strokeDasharray="10,5"
-                          fill="none"
-                          className="animate-drawLine"
-                        />
-                      )}
-                    </svg>
-                    
-                    {/* Chart Labels */}
-                    <div className="absolute bottom-2 left-2 text-xs text-white/60">0 Overs</div>
-                    <div className="absolute bottom-2 right-2 text-xs text-white/60">{innings.maxOvers || 20} Overs</div>
-                    <div className="absolute top-2 left-2 text-xs text-white/60">15 RPO</div>
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold mb-6 text-center">Run Rate Progression</h3>
+                  <div className="relative h-48 bg-white/10 rounded-lg overflow-hidden p-3">
+                    {/* Two-team run rate progression chart (SVG) */}
+                    {(() => {
+                      // Determine max overs to plot
+                      const maxOvers = Math.max(
+                        match.innings1.maxOvers || match.innings1.overNumber || 0,
+                        (match.innings2?.maxOvers) || match.innings2?.overNumber || 0,
+                        1
+                      );
+
+                      // Helper: sum runs in events up to a given over (inclusive)
+                      const sumRunsUpTo = (events: any[], overIndex: number) => {
+                        return events.filter(e => e.overNumber <= overIndex).reduce((s, ev) => s + (ev.runsBat || ev.runsExtra || 0), 0);
+                      };
+
+                      const teamAEvents = match.innings1.events || [];
+                      const teamBEvents = match.innings2?.events || [];
+
+                      const aRates: number[] = [];
+                      const bRates: number[] = [];
+
+                      for (let i = 0; i < maxOvers; i++) {
+                        const aRuns = sumRunsUpTo(teamAEvents, i);
+                        const bRuns = sumRunsUpTo(teamBEvents, i);
+
+                        // cumulative run rate = total runs / overs
+                        const aRate = (i + 1) > 0 ? aRuns / (i + 1) : 0;
+                        const bRate = (i + 1) > 0 ? bRuns / (i + 1) : 0;
+
+                        aRates.push(aRate);
+                        bRates.push(bRate);
+                      }
+
+                      const allRates = [...aRates, ...bRates, currentRunRate, requiredRunRate];
+                      const maxRate = Math.max(6, ...allRates) * 1.25; // scale with margin
+
+                      const viewW = 640;
+                      const viewH = 180;
+
+                      const mapX = (idx: number) => (idx / (maxOvers - 1 || 1)) * viewW;
+                      const mapY = (rate: number) => viewH - (rate / maxRate) * (viewH - 20) - 10;
+
+                      const teamAColor = getTeamAColor();
+                      const teamBColor = getTeamBColor();
+
+                      const makePath = (rates: number[]) => rates.map((r, i) => `${i === 0 ? 'M' : 'L'} ${mapX(i)} ${mapY(r)}`).join(' ');
+
+                      const aPath = makePath(aRates);
+                      const bPath = makePath(bRates);
+
+                      return (
+                        <svg className="w-full h-full" viewBox={`0 0 ${viewW} ${viewH}`} preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="aLine" x1="0%" x2="100%">
+                              <stop offset="0%" stopColor={teamAColor} stopOpacity="0.95" />
+                              <stop offset="100%" stopColor={teamAColor} stopOpacity="0.6" />
+                            </linearGradient>
+                            <linearGradient id="bLine" x1="0%" x2="100%">
+                              <stop offset="0%" stopColor={teamBColor} stopOpacity="0.95" />
+                              <stop offset="100%" stopColor={teamBColor} stopOpacity="0.6" />
+                            </linearGradient>
+                          </defs>
+
+                          {/* grid */}
+                          {[0.25, 0.5, 0.75].map((g, idx) => (
+                            <line key={idx} x1={0} y1={g * viewH} x2={viewW} y2={g * viewH} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+                          ))}
+
+                          {/* filled area under Team A */}
+                          <path d={`${aPath} L ${viewW} ${viewH} L 0 ${viewH} Z`} fill={teamAColor} fillOpacity={0.08} stroke="none" />
+                          {/* filled area under Team B */}
+                          <path d={`${bPath} L ${viewW} ${viewH} L 0 ${viewH} Z`} fill={teamBColor} fillOpacity={0.06} stroke="none" />
+
+                          {/* Team A line (thicker, solid) */}
+                          <path d={aPath} fill="none" stroke={teamAColor} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" opacity={0.98} />
+                          {/* Team B line (thicker, dashed) */}
+                          <path d={bPath} fill="none" stroke={teamBColor} strokeWidth={4} strokeDasharray="8,6" strokeLinejoin="round" strokeLinecap="round" opacity={0.98} />
+
+                          {/* markers (larger for visibility) */}
+                          {aRates.map((r, i) => (
+                            <circle key={`a-${i}`} cx={mapX(i)} cy={mapY(r)} r={4.5} fill={teamAColor} stroke="#00000020" />
+                          ))}
+                          {bRates.map((r, i) => (
+                            <rect key={`b-${i}`} x={mapX(i) - 4} y={mapY(r) - 4} width={8} height={8} fill={teamBColor} stroke="#00000020" rx={1} />
+                          ))}
+
+                          {/* x-axis labels */}
+                          <g>
+                            <text x={6} y={viewH - 6} fontSize={12} fill="rgba(255,255,255,0.9)">0</text>
+                            <text x={viewW - 24} y={viewH - 6} fontSize={12} fill="rgba(255,255,255,0.9)">{maxOvers}</text>
+                          </g>
+                        </svg>
+                      );
+                    })()}
+
+                    <div className="absolute top-3 right-3 flex items-center space-x-4 text-sm sm:text-base">
+                      <div className="flex items-center space-x-1"><span className="w-3 h-2 rounded-sm" style={{ background: getTeamAColor() }}></span><span className="opacity-80">{match.teamA.name}</span></div>
+                      <div className="flex items-center space-x-1"><span className="w-3 h-2 rounded-sm" style={{ background: getTeamBColor() }}></span><span className="opacity-80">{match.teamB.name}</span></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -390,7 +349,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
                       <div className="text-2xl font-semibold">Current Run Rate</div>
                     </div>
                     <div className="relative">
-                      <div className="text-7xl font-bold text-green-400 mb-4 animate-pulse">
+                      <div className="text-4xl sm:text-5xl md:text-7xl font-bold text-green-400 mb-4 animate-pulse">
                         {currentRunRate.toFixed(2)}
                       </div>
                       <div className="absolute -top-2 -right-2 w-4 h-4 bg-green-400 rounded-full animate-ping"></div>
@@ -414,8 +373,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
                         <Target className="h-8 w-8 text-red-400 mr-2 animate-spin-slow" />
                         <div className="text-2xl font-semibold">Required Run Rate</div>
                       </div>
-                      <div className="relative">
-                        <div className="text-7xl font-bold text-red-400 mb-4 animate-pulse">
+                        <div className="relative">
+                        <div className="text-4xl sm:text-5xl md:text-7xl font-bold text-red-400 mb-4 animate-pulse">
                           {requiredRunRate.toFixed(2)}
                         </div>
                         <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-400 rounded-full animate-ping"></div>
@@ -804,7 +763,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
         {renderFullscreenPanel()}
 
         {/* Compact footer - only show if no fullscreen panel or if settings allow */}
-  {(!showFullscreenPanel && !forcePanel && overlaySettings?.showOverlay) && (
+        {(!showFullscreenPanel && !forcePanel && overlaySettings?.showOverlay) && (
           <div 
             className="cricket-footer fixed bottom-0 left-0 right-0 text-white shadow-2xl backdrop-blur-lg animate-slideUp"
             style={{
@@ -866,7 +825,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
               <div className="flex items-center space-x-6 mx-8 flex-1 min-w-0">
                 <div className="text-center min-w-0">
                   <div className="text-sm font-semibold text-white truncate">
-                    {striker?.name || striker?.id || 'N/A'}
+                    {striker?.name || 'N/A'}
                   </div>
                   <div className="text-xs text-green-300 uppercase">
                     STRIKER · {striker?.battingStats?.runs || 0} ({striker?.battingStats?.balls || 0})
@@ -875,7 +834,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
 
                 <div className="text-center min-w-0">
                   <div className="text-sm font-semibold text-white truncate">
-                    {nonStriker?.name || nonStriker?.id || 'N/A'}
+                    {nonStriker?.name || 'N/A'}
                   </div>
                   <div className="text-xs text-blue-300 uppercase">
                     NON-STRIKER · {nonStriker?.battingStats?.runs || 0} ({nonStriker?.battingStats?.balls || 0})
@@ -884,7 +843,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
 
                 <div className="text-center min-w-0">
                   <div className="text-sm font-semibold text-white truncate">
-                    {bowler?.name || bowler?.id || 'N/A'}
+                    {bowler?.name || 'N/A'}
                   </div>
                   <div className="text-xs text-red-300 uppercase">
                     BOWLER · {Math.floor((bowler?.bowlingStats?.balls || 0) / 6)}.{(bowler?.bowlingStats?.balls || 0) % 6} - {bowler?.bowlingStats?.runs || 0}/{bowler?.bowlingStats?.wickets || 0}
@@ -892,33 +851,27 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
                 </div>
               </div>
 
-              {/* Last 6 Balls */}
+              {/* Current Over Balls - showing all deliveries including extras */}
               <div className="flex items-center space-x-2 mx-6 flex-shrink-0">
                 <div className="text-xs text-white/70 uppercase mr-2">This Over</div>
                 <div className="flex space-x-1">
-                  {Array.from({ length: 6 }, (_, i) => {
-                    const ball = currentOverBalls[i];
-                    
-                    if (!ball) {
-                      return (
-                        <div
-                          key={i}
-                          className="ball-indicator"
-                          style={{
-                            width: `${styleSettings?.ballIndicatorSize || 24}px`,
-                            height: `${styleSettings?.ballIndicatorSize || 24}px`,
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            border: '1px solid rgba(255,255,255,0.3)',
-                            color: 'rgba(255,255,255,0.5)'
-                          }}
-                        >
-                          •
-                        </div>
-                      );
-                    }
-                    
-                    return renderBallIndicator(ball, i, styleSettings);
-                  })}
+                  {currentOverBalls.map((ball, index) => renderBallIndicator(ball, index, styleSettings))}
+                  {/* Show empty slots for remaining legal balls if over is not complete */}
+                  {Array.from({ length: Math.max(0, 6 - currentOverBalls.filter(b => b.type !== 'wide' && b.type !== 'noball').length) }, (_, i) => (
+                    <div
+                      key={`empty-${i}`}
+                      className="ball-indicator"
+                      style={{
+                        width: `${styleSettings?.ballIndicatorSize || 24}px`,
+                        height: `${styleSettings?.ballIndicatorSize || 24}px`,
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: 'rgba(255,255,255,0.5)'
+                      }}
+                    >
+                      •
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -966,6 +919,10 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
                   </span>
                 )}
               </div>
+            </div>
+            {/* Last updated timestamp for debugging realtime updates */}
+            <div className="text-right text-xs text-white/60 mt-1 mr-4">
+              {match.updatedAt ? `Last updated: ${new Date(match.updatedAt).toLocaleTimeString()}` : ''}
             </div>
           </div>
         )}
@@ -1070,13 +1027,13 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
           )}
         </div>
 
-        {/* Current Batsmen */}
+        {/* Current Batsmen - Player names prominent */}
         <div className="grid grid-cols-2 gap-6 mb-6">
           <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="text-lg font-semibold text-gray-900 mb-1">{striker?.name || 'N/A'}</div>
             <div className="text-sm text-green-600 font-medium mb-1">
               STRIKER
             </div>
-            <div className="text-lg font-semibold text-gray-900 mb-1">{striker?.name}</div>
             <div className="text-sm text-gray-600">
               {striker?.battingStats?.runs || 0} ({striker?.battingStats?.balls || 0}) - 
               4s: {striker?.battingStats?.fours || 0}, 6s: {striker?.battingStats?.sixes || 0}
@@ -1089,10 +1046,10 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="text-lg font-semibold text-gray-900 mb-1">{nonStriker?.name || 'N/A'}</div>
             <div className="text-sm text-blue-600 font-medium mb-1">
               NON-STRIKER
             </div>
-            <div className="text-lg font-semibold text-gray-900 mb-1">{nonStriker?.name}</div>
             <div className="text-sm text-gray-600">
               {nonStriker?.battingStats?.runs || 0} ({nonStriker?.battingStats?.balls || 0}) - 
               4s: {nonStriker?.battingStats?.fours || 0}, 6s: {nonStriker?.battingStats?.sixes || 0}
@@ -1105,12 +1062,12 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
           </div>
         </div>
 
-        {/* Current Bowler */}
+        {/* Current Bowler - Player name prominent */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <div className="text-lg font-semibold text-gray-900 mb-1">{bowler?.name || 'N/A'}</div>
           <div className="text-sm text-red-600 font-medium mb-1">
             BOWLER
           </div>
-          <div className="text-lg font-semibold text-gray-900 mb-1">{bowler?.name}</div>
           <div className="text-sm text-gray-600">
             {Math.floor((bowler?.bowlingStats?.balls || 0) / 6)}.{(bowler?.bowlingStats?.balls || 0) % 6} - 
             {bowler?.bowlingStats?.runs || 0}/{bowler?.bowlingStats?.wickets || 0}
@@ -1122,33 +1079,16 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = React.memo(({ match, ov
           )}
         </div>
 
-        {/* Last 6 Balls */}
+        {/* Current Over - showing all deliveries including extras */}
         <div className="mb-6">
           <div className="text-sm text-gray-600 font-medium mb-2">
-            CURRENT OVER
+            CURRENT OVER ({innings.overNumber + 1})
           </div>
-          <div className="flex space-x-2">
-            {Array.from({ length: 6 }, (_, i) => {
-              const ball = currentOverBalls[i];
-              
-              if (!ball) {
-                return (
-                  <div
-                    key={i}
-                    className="ball-indicator bg-gray-200 text-gray-400"
-                    style={{
-                      width: `${styleSettings?.ballIndicatorSize || 32}px`,
-                      height: `${styleSettings?.ballIndicatorSize || 32}px`,
-                      fontSize: styleSettings?.ballIndicatorSize && styleSettings.ballIndicatorSize < 28 ? '10px' : '12px'
-                    }}
-                  >
-                    •
-                  </div>
-                );
-              }
-              
-              return renderBallIndicator(ball, i);
-            })}
+          <div className="flex space-x-2 flex-wrap">
+            {currentOverBalls.map((ball, index) => renderBallIndicator(ball, index))}
+            {currentOverBalls.length === 0 && (
+              <div className="text-gray-500 text-sm">No balls bowled yet</div>
+            )}
           </div>
           
           {/* Over History */}

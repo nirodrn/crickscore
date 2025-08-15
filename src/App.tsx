@@ -287,6 +287,17 @@ function App() {
         // Match is still saved locally, so overlay can continue working
       }
     }
+    // If this match has been marked public, also publish it to the public_matches
+    // path so unauthenticated overlay viewers (OBS) receive realtime updates.
+    try {
+      if (updatedMatch.id && (updatedMatch as any).isPublic) {
+        // dynamic import avoids circular dependency
+        const mod = await import('./firebase');
+        await mod.publishMatchToPublic(updatedMatch);
+      }
+    } catch (e) {
+      console.error('Failed to publish match to public after update:', e);
+    }
   };
 
   const handleOverlaySettingsUpdate = (settings: any) => {
@@ -457,11 +468,15 @@ function App() {
                             // import dynamically to avoid circular issues
                             const mod = await import('./firebase');
                             if (match && match.id) {
-                              await mod.publishMatchToPublic(match);
-                              const url = `${window.location.origin}${window.location.pathname}?overlay=1&match=${match.id}`;
-                              navigator.clipboard.writeText(url);
-                              alert('Public overlay published and URL copied!');
-                            }
+                                // mark match as public so future updates are auto-published
+                                const publicMatch = { ...match, isPublic: true } as MatchState & { isPublic?: boolean };
+                                // update local state and persist
+                                setMatch(publicMatch);
+                                await mod.publishMatchToPublic(publicMatch);
+                                const url = `${window.location.origin}${window.location.pathname}?overlay=1&match=${match.id}`;
+                                navigator.clipboard.writeText(url);
+                                alert('Public overlay published and URL copied!');
+                              }
                           } catch (e) {
                             console.error(e);
                             alert('Failed to publish match publicly');

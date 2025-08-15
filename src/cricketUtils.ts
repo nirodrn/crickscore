@@ -459,11 +459,11 @@ export class CricketScorer {
           item.type = 'boundary6';
           break;
         case 'wide':
-          item.value = `w${event.runsExtra && event.runsExtra > 1 ? event.runsExtra : ''}`;
+          item.value = event.runsExtra && event.runsExtra > 1 ? `w${event.runsExtra}` : 'w';
           item.type = 'wide';
           break;
         case 'noball':
-          item.value = `nb${event.runsBat ? event.runsBat : ''}`;
+          item.value = event.runsBat ? `nb${event.runsBat}` : 'nb';
           item.type = 'noball';
           break;
         case 'bye':
@@ -490,6 +490,79 @@ export class CricketScorer {
 
       return item;
     });
+  }
+
+  static getOverBalls(innings: InningsState, overNumber: number): BallDisplayItem[] {
+    const overEvents = innings.events.filter(e => 
+      e.overNumber === overNumber && e.kind !== 'dead'
+    );
+
+    return overEvents.map(event => {
+      const item: BallDisplayItem = {
+        value: '',
+        type: 'dot',
+        isFreeHit: event.freeHitBefore,
+        runs: event.runsBat || event.runsExtra || 0
+      };
+
+      switch (event.kind) {
+        case 'wicket':
+          item.value = 'W';
+          item.type = 'wicket';
+          break;
+        case 'boundary4':
+          item.value = '4';
+          item.type = 'boundary4';
+          break;
+        case 'boundary6':
+          item.value = '6';
+          item.type = 'boundary6';
+          break;
+        case 'wide':
+          item.value = event.runsExtra && event.runsExtra > 1 ? `w${event.runsExtra}` : 'w';
+          item.type = 'wide';
+          break;
+        case 'noball':
+          item.value = event.runsBat ? `nb${event.runsBat}` : 'nb';
+          item.type = 'noball';
+          break;
+        case 'bye':
+          item.value = `b${event.runsExtra || 1}`;
+          item.type = 'bye';
+          break;
+        case 'legbye':
+          item.value = `lb${event.runsExtra || 1}`;
+          item.type = 'legbye';
+          break;
+        case 'run':
+          if (event.runsBat === 0) {
+            item.value = '•';
+            item.type = 'dot';
+          } else {
+            item.value = String(event.runsBat);
+            item.type = 'run';
+          }
+          break;
+        default:
+          item.value = '•';
+          item.type = 'dot';
+      }
+
+      return item;
+    });
+  }
+
+  static getAllOvers(innings: InningsState): Array<{ overNumber: number; balls: BallDisplayItem[] }> {
+    const overs: Array<{ overNumber: number; balls: BallDisplayItem[] }> = [];
+    
+    for (let i = 0; i <= innings.overNumber; i++) {
+      const balls = this.getOverBalls(innings, i);
+      if (balls.length > 0) {
+        overs.push({ overNumber: i + 1, balls });
+      }
+    }
+    
+    return overs;
   }
 
   static getMatchResult(match: MatchState): string {

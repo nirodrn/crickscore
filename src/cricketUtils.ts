@@ -567,14 +567,25 @@ export class CricketScorer {
 
   static getMatchResult(match: MatchState): string {
     if (!match.innings1.isComplete) {
-      return 'Match in Progress';
+      // Check if match is in interval
+      if (match.innings1.isInterval) {
+        const intervalType = match.innings1.intervalType || 'interval';
+        const message = match.innings1.intervalMessage;
+        return message || `${intervalType.charAt(0).toUpperCase() + intervalType.slice(1)} Break`;
+      }
+      return `Match in Progress - Innings ${match.currentInnings}`;
     }
 
     if (match.currentInnings === 1) {
-      return 'First Innings Complete';
+      return 'First Innings Complete - Innings Break';
     }
 
     if (!match.innings2 || !match.innings2.isComplete) {
+      if (match.innings2?.isInterval) {
+        const intervalType = match.innings2.intervalType || 'interval';
+        const message = match.innings2.intervalMessage;
+        return message || `${intervalType.charAt(0).toUpperCase() + intervalType.slice(1)} Break`;
+      }
       return 'Second Innings in Progress';
     }
 
@@ -612,5 +623,152 @@ export class CricketScorer {
     match.result = this.getMatchResult(match);
     match.isComplete = match.innings1.isComplete && 
       (match.currentInnings === 1 || (match.innings2?.isComplete ?? false));
+  }
+
+  static getTopBatters(team: Team, count: number = 5): PlayerRef[] {
+    return team.players
+      .filter(p => p.battingStats && p.battingStats.balls > 0)
+      .sort((a, b) => (b.battingStats?.runs || 0) - (a.battingStats?.runs || 0))
+      .slice(0, count);
+  }
+
+  static getTopBowlers(team: Team, count: number = 5): PlayerRef[] {
+    return team.players
+      .filter(p => p.bowlingStats && p.bowlingStats.balls > 0)
+      .sort((a, b) => (b.bowlingStats?.wickets || 0) - (a.bowlingStats?.wickets || 0))
+      .slice(0, count);
+  }
+
+  static getWicketFallData(innings: InningsState): Array<{
+    overNumber: number;
+    ballInOver: number;
+    score: number;
+    wicketNumber: number;
+    playerId: string;
+    dismissalType: string;
+  }> {
+    const wickets = [];
+    let wicketCount = 0;
+    let runningScore = 0;
+    
+    for (const event of innings.events) {
+      runningScore += (event.runsBat || 0) + (event.runsExtra || 0);
+      
+      if (event.kind === 'wicket') {
+        wicketCount++;
+        wickets.push({
+          overNumber: event.overNumber,
+          ballInOver: event.legalBallInOver || 0,
+          score: runningScore - (event.runsBat || 0), // Score before the wicket ball
+          wicketNumber: wicketCount,
+          playerId: event.strikerIdBefore,
+          dismissalType: event.wicketType || 'unknown'
+        });
+      }
+    }
+    
+    return wickets;
+  }
+
+  static getRunRateProgression(innings: InningsState): Array<{
+    over: number;
+    score: number;
+    runRate: number;
+    runsInOver: number;
+  }> {
+    const progression = [];
+    let runningScore = 0;
+    let currentOver = 0;
+    let ballsInOver = 0;
+    let overStartScore = 0;
+    
+    for (const event of innings.events) {
+      const eventRuns = (event.runsBat || 0) + (event.runsExtra || 0);
+      runningScore += eventRuns;
+      
+      if (event.legalBallInOver !== undefined) {
+        ballsInOver++;
+        if (ballsInOver === 6) {
+          currentOver++;
+          const totalBalls = currentOver * 6;
+          const runsInThisOver = runningScore - overStartScore;
+          progression.push({
+            over: currentOver,
+            score: runningScore,
+            runRate: totalBalls > 0 ? (runningScore / totalBalls) * 6 : 0,
+            runsInOver: runsInThisOver
+          });
+          ballsInOver = 0;
+          overStartScore = runningScore;
+        }
+      }
+    }
+    
+    // Add current incomplete over
+    if (ballsInOver > 0) {
+      const totalBalls = (currentOver * 6) + ballsInOver;
+      const runsInThisOver = runningScore - overStartScore;
+      progression.push({
+        over: currentOver + (ballsInOver / 6),
+        score: runningScore,
+        runRate: totalBalls > 0 ? (runningScore / totalBalls) * 6 : 0,
+        runsInOver: runsInThisOver
+      });
+    }
+    
+    return progression;
+  }
+
+  static getTeamBattingStats(team: Team): {
+    totalRuns: number;
+    totalBalls: number;
+    strikeRate: number;
+    totalBoundaries: number;
+    boundaryPercentage: number;
+    activeBatters: number;
+  } | null {
+    const batters = team.players.filter(p => p.battingStats && p.battingStats.balls > 0);
+    if (batters.length === 0) return null;
+    
+    const totalRuns = batters.reduce((sum, p) => sum + (p.battingStats?.runs || 0), 0);
+    const totalBalls = batters.reduce((sum, p) => sum + (p.battingStats?.balls || 0), 0);
+    const totalFours = batters.reduce((sum, p) => sum + (p.battingStats?.fours || 0), 0);
+    const totalSixes = batters.reduce((sum, p) => sum + (p.battingStats?.sixes || 0), 0);
+    const boundaryRuns = (totalFours * 4) + (totalSixes * 6);
+    
+    return {
+      totalRuns,
+      totalBalls,
+      strikeRate: totalBalls > 0 ? (totalRuns / totalBalls) * 100 : 0,
+      totalBoundaries: totalFours + totalSixes,
+      boundaryPercentage: totalRuns > 0 ? (boundaryRuns / totalRuns) * 100 : 0,
+      activeBatters: batters.length
+    };
+  }
+
+  static getTeamBowlingStats(team: Team): {
+    totalWickets: number;
+    totalRuns: number;
+    totalOvers: number;
+    economyRate: number;
+    strikeRate: number;
+    activeBowlers: number;
+  } | null {
+    const bowlers = team.players.filter(p => p.bowlingStats && p.bowlingStats.balls > 0);
+    if (bowlers.length === 0) return null;
+    
+    const totalWickets = bowlers.reduce((sum, p) => sum + (p.bowlingStats?.wickets || 0), 0);
+    const totalRuns = bowlers.reduce((sum, p) => sum + (p.bowlingStats?.runs || 0), 0);
+    const totalBalls = bowlers.reduce((sum, p) => sum + (p.bowlingStats?.balls || 0), 0);
+    const totalOvers = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
+    
+    return {
+      totalWickets,
+      totalRuns,
+      totalOvers,
+      economyRate: totalOvers > 0 ? totalRuns / totalOvers : 0,
+      strikeRate: totalWickets > 0 ? totalBalls / totalWickets : 0,
+      activeBowlers: bowlers.length
+    };
   }
 }

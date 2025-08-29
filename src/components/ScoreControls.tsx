@@ -342,6 +342,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
           <button
             onClick={() => setShowBowlerModal(true)}
             className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded text-sm"
+            title="Change bowler at any time"
           >
             <Users className="h-4 w-4" />
             <span>Bowler</span>
@@ -350,6 +351,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
           <button
             onClick={handleSwitchStrike}
             className="flex items-center space-x-1 px-3 py-1 bg-gray-600 text-white rounded text-sm"
+            title="Switch strike between batsmen"
           >
             <ArrowLeftRight className="h-4 w-4" />
             <span>Switch Strike</span>
@@ -358,6 +360,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
           <button
             onClick={() => setShowBatsmanModal(true)}
             className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded text-sm"
+            title="Change batsman at any time"
           >
             <Users className="h-4 w-4" />
             <span>Change Batsman</span>
@@ -513,9 +516,30 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
       {showBowlerModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">Select New Bowler</h3>
+            <h3 className="text-lg font-semibold mb-4">Change Bowler (Anytime)</h3>
+            
+            <div className="mb-4">
+              <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                <p className="text-xs text-purple-800">
+                  <strong>Note:</strong> You can change the bowler at any time during the match, 
+                  even in the middle of an over. The new bowler will continue from the current ball.
+                </p>
+              </div>
+            </div>
+            
+            <div className="mb-4 bg-gray-50 p-3 rounded">
+              <h4 className="font-medium mb-1">Current Bowler:</h4>
+              <div className="text-sm text-gray-700">{bowler?.name || 'None selected'}</div>
+              {bowler?.bowlingStats && (
+                <div className="text-xs text-gray-600">
+                  {Math.floor(bowler.bowlingStats.balls / 6)}.{bowler.bowlingStats.balls % 6} - 
+                  {bowler.bowlingStats.runs}/{bowler.bowlingStats.wickets}
+                </div>
+              )}
+            </div>
             
             <div className="space-y-2 max-h-64 overflow-y-auto">
+              <h4 className="font-medium mb-2">Available Bowlers:</h4>
               {availableBowlers.map((player) => (
                 <button
                   key={player.id}
@@ -534,6 +558,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                   )}
                 </button>
               ))}
+              
+              {availableBowlers.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <p>No available bowlers</p>
+                  <p className="text-xs">All eligible bowlers are either out or currently bowling</p>
+                </div>
+              )}
             </div>
 
             <button
@@ -550,12 +581,18 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
       {showBatsmanModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">Change Batsman</h3>
+            <h3 className="text-lg font-semibold mb-4">Change Batsman (Anytime)</h3>
             
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">
-                Select which batsman to replace and choose the new batsman:
+                Select a new batsman to replace any current batsman:
               </p>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> You can change batsmen at any time during the match. 
+                  The new batsman will replace the last dismissed player or can substitute any current batsman.
+                </p>
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -580,6 +617,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                   )}
                 </button>
               ))}
+              
+              {availableBatsmen.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <p>No available batsmen</p>
+                  <p className="text-xs">All players are either out or currently batting</p>
+                </div>
+              )}
             </div>
 
             <button

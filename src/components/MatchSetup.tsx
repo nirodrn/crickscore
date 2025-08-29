@@ -188,12 +188,16 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
            match.teamA.players.length >= 2 && 
            match.teamB.players.length >= 2 &&
            match.tossWinner &&
-           match.elected;
+           match.elected &&
+           match.innings1.strikerId &&
+           match.innings1.nonStrikerId &&
+           match.innings1.bowlerId &&
+           match.innings1.strikerId !== match.innings1.nonStrikerId;
   };
 
   const getSetupProgress = () => {
     let completed = 0;
-    let total = 6;
+    let total = 9;
     
     if (match.teamA.name) completed++;
     if (match.teamB.name) completed++;
@@ -201,6 +205,9 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     if (match.teamB.players.length >= 2) completed++;
     if (match.tossWinner) completed++;
     if (match.elected) completed++;
+    if (match.innings1.strikerId) completed++;
+    if (match.innings1.nonStrikerId) completed++;
+    if (match.innings1.bowlerId) completed++;
     
     return { completed, total, percentage: (completed / total) * 100 };
   };
@@ -488,6 +495,121 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
               </div>
             </div>
 
+            {/* Opening Players Selection */}
+            {match.tossWinner && match.elected && (
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-emerald-900 mb-4 flex items-center space-x-2">
+                  <Users className="h-6 w-6 text-emerald-600" />
+                  <span>Select Opening Players</span>
+                </h3>
+                
+                {(() => {
+                  const battingFirst = (match.tossWinner === 'A' && match.elected === 'bat') || 
+                                     (match.tossWinner === 'B' && match.elected === 'bowl') ? 'A' : 'B';
+                  const battingTeam = battingFirst === 'A' ? match.teamA : match.teamB;
+                  const bowlingTeam = battingFirst === 'A' ? match.teamB : match.teamA;
+                  
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Striker Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-2">
+                          Opening Striker ({battingTeam.name})
+                        </label>
+                        <select
+                          value={match.innings1.strikerId || ''}
+                          onChange={(e) => updateMatchField('innings1.strikerId', e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Select Striker</option>
+                          {battingTeam.players.map((player) => (
+                            <option key={player.id} value={player.id}>
+                              {player.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Non-Striker Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-2">
+                          Opening Non-Striker ({battingTeam.name})
+                        </label>
+                        <select
+                          value={match.innings1.nonStrikerId || ''}
+                          onChange={(e) => updateMatchField('innings1.nonStrikerId', e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Select Non-Striker</option>
+                          {battingTeam.players
+                            .filter(player => player.id !== match.innings1.strikerId)
+                            .map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {player.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* Opening Bowler Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-2">
+                          Opening Bowler ({bowlingTeam.name})
+                        </label>
+                        <select
+                          value={match.innings1.bowlerId || ''}
+                          onChange={(e) => updateMatchField('innings1.bowlerId', e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Select Opening Bowler</option>
+                          {bowlingTeam.players
+                            .filter(player => player.canBowl !== false && (player.roles?.includes('Bowler') || !player.roles || player.roles.length === 0 || player.canBowl === true))
+                            .map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {player.name}
+                                {player.roles && player.roles.length > 0 && ` (${player.roles.join(', ')})`}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {/* Player Selection Status */}
+                <div className="mt-4 p-4 bg-white/50 rounded-lg">
+                  <div className="text-sm text-emerald-800">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex items-center space-x-2">
+                        {match.innings1.strikerId ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span>Striker Selected</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {match.innings1.nonStrikerId ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span>Non-Striker Selected</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {match.innings1.bowlerId ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span>Bowler Selected</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Setup Checklist */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6">
               <h3 className="text-lg font-bold text-green-900 mb-4">Setup Checklist</h3>
@@ -498,7 +620,10 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                   { label: 'Team A Players (min 2)', completed: match.teamA.players.length >= 2 },
                   { label: 'Team B Players (min 2)', completed: match.teamB.players.length >= 2 },
                   { label: 'Toss Winner', completed: !!match.tossWinner },
-                  { label: 'Elected Decision', completed: !!match.elected }
+                  { label: 'Elected Decision', completed: !!match.elected },
+                  { label: 'Opening Striker', completed: !!match.innings1.strikerId },
+                  { label: 'Opening Non-Striker', completed: !!match.innings1.nonStrikerId },
+                  { label: 'Opening Bowler', completed: !!match.innings1.bowlerId }
                 ].map((item, index) => (
                   <div key={index} className="flex items-center space-x-3">
                     {item.completed ? (

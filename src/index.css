@@ -98,6 +98,106 @@ body {
   }
 }
 
+/* Enhanced responsive design for all desktop resolutions */
+@media (min-width: 1200px) {
+  .container-xl {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .container-2xl {
+    max-width: 1400px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .container-3xl {
+    max-width: 1600px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .container-4xl {
+    max-width: 1800px;
+  }
+}
+
+/* Responsive grid system */
+.responsive-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+@media (min-width: 1400px) {
+  .responsive-grid {
+    grid-template-columns: 1fr 2.5fr;
+  }
+}
+
+@media (min-width: 1600px) {
+  .responsive-grid {
+    grid-template-columns: 1fr 3fr;
+  }
+}
+
+/* Responsive text scaling */
+@media (min-width: 1400px) {
+  .text-responsive-lg {
+    font-size: 1.25rem;
+  }
+  
+  .text-responsive-xl {
+    font-size: 1.5rem;
+  }
+  
+  .text-responsive-2xl {
+    font-size: 1.875rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  .text-responsive-lg {
+    font-size: 1.375rem;
+  }
+  
+  .text-responsive-xl {
+    font-size: 1.75rem;
+  }
+  
+  .text-responsive-2xl {
+    font-size: 2.25rem;
+  }
+}
+
+/* Responsive spacing */
+@media (min-width: 1400px) {
+  .p-responsive {
+    padding: 2rem;
+  }
+  
+  .gap-responsive {
+    gap: 2rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  .p-responsive {
+    padding: 2.5rem;
+  }
+  
+  .gap-responsive {
+    gap: 2.5rem;
+  }
+}
+
 /* Focus styles */
 .focus-ring {
   @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;

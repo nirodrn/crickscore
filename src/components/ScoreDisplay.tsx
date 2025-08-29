@@ -268,7 +268,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
         {/* International Standard Footer Overlay */}
         {overlaySettings?.showOverlay && !showFullscreenPanel && (
-          <div className="fixed bottom-0 left-0 right-0 z-40">
+          <div className="overlay-footer-container">
             <div 
               className="international-cricket-footer"
               style={{
@@ -340,6 +340,14 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                         {formatOvers(innings.overNumber, innings.legalBallsInCurrentOver)} overs
                       </div>
                     </div>
+                    
+                    {/* Extras Display */}
+                    <div className="extras-display">
+                      <div className="text-xs text-white/80 font-semibold tracking-wide">
+                        Extras: Wd {battingTeam.extras.wides}, NB {battingTeam.extras.noballs}, B {battingTeam.extras.byes}, LB {battingTeam.extras.legbyes}
+                      </div>
+                    </div>
+                    
                     <div className="tournament-info">
                       {match.tournamentName || 'Cricket Match'}
                     </div>

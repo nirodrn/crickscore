@@ -272,7 +272,19 @@ function App() {
       return;
     }
 
-    // Set up innings based on toss result
+    // Validate that opening players are selected
+    if (!match.innings1.strikerId || !match.innings1.nonStrikerId || !match.innings1.bowlerId) {
+      alert('Please select opening striker, non-striker, and bowler before starting');
+      return;
+    }
+
+    // Validate that striker and non-striker are different
+    if (match.innings1.strikerId === match.innings1.nonStrikerId) {
+      alert('Striker and non-striker must be different players');
+      return;
+    }
+
+    // Set up innings based on toss result (opening players already selected manually)
     const updatedMatch = { ...match };
     if (match.tossWinner && match.elected) {
       const battingFirst = (match.tossWinner === 'A' && match.elected === 'bat') || 
@@ -281,18 +293,8 @@ function App() {
       updatedMatch.innings1.battingTeam = battingFirst;
       updatedMatch.innings1.bowlingTeam = battingFirst === 'A' ? 'B' : 'A';
       
-      // Set opening players
-      const battingTeam = battingFirst === 'A' ? updatedMatch.teamA : updatedMatch.teamB;
-      const bowlingTeam = battingFirst === 'A' ? updatedMatch.teamB : updatedMatch.teamA;
-      
-      if (battingTeam.players.length >= 2) {
-        updatedMatch.innings1.strikerId = battingTeam.players[0].id;
-        updatedMatch.innings1.nonStrikerId = battingTeam.players[1].id;
-      }
-      
-      if (bowlingTeam.players.length >= 1) {
-        updatedMatch.innings1.bowlerId = bowlingTeam.players[0].id;
-      }
+      // Opening players are already set manually in MatchSetup component
+      // No need to auto-assign here
     }
 
     setMatch(updatedMatch);

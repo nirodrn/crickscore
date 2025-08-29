@@ -105,13 +105,24 @@ function App() {
 
   // Listen for auth changes
   useEffect(() => {
-    firebaseService.onAuthStateChanged((user) => {
+    const unsubscribe = firebaseService.onAuthStateChanged((user) => {
+      console.log('App: Auth state changed:', user);
       setUser(user);
       if (user) {
+        console.log('App: User authenticated, loading data');
         loadUserMatches();
         loadThemeSettings();
+      } else {
+        console.log('App: User signed out, clearing data');
+        setMatch(null);
+        setMatchStarted(false);
+        setUserMatches([]);
       }
     });
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Load theme settings when user changes
@@ -208,13 +219,16 @@ function App() {
 
   const createNewMatch = async () => {
     if (!user) {
+      console.log('No user authenticated, showing auth modal');
       setShowAuthModal(true);
       return;
     }
 
     try {
+      console.log('Creating new match for user:', user.uid);
       const newMatch = createDefaultMatch();
       const matchId = await firebaseService.createMatch(newMatch);
+      console.log('Match created with ID:', matchId);
       newMatch.id = matchId;
       setMatch(newMatch);
       setMatchStarted(false);
@@ -230,15 +244,21 @@ function App() {
       window.history.replaceState({}, '', url.toString());
     } catch (error) {
       console.error('Failed to create match:', error);
+      alert('Failed to create match. Please try again.');
     }
   };
 
   const loadMatch = async (matchId: string) => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user authenticated, cannot load match');
+      return;
+    }
 
     try {
+      console.log('Loading match:', matchId);
       const loadedMatch = await firebaseService.getMatch(matchId);
       if (loadedMatch) {
+        console.log('Match loaded successfully');
         setMatch(loadedMatch);
         setMatchStarted(loadedMatch.innings1.events.length > 0);
         
@@ -246,20 +266,28 @@ function App() {
         const url = new URL(window.location.href);
         url.searchParams.set('match', matchId);
         window.history.replaceState({}, '', url.toString());
+      } else {
+        console.log('Match not found');
+        alert('Match not found');
       }
     } catch (error) {
       console.error('Failed to load match:', error);
+      alert('Failed to load match. Please try again.');
     }
   };
 
   const loadUserMatches = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user authenticated, cannot load matches');
+      return;
+    }
 
     try {
+      console.log('Loading user matches for:', user.uid);
       const matches = await firebaseService.getUserMatches();
       const sortedMatches = matches.sort((a, b) => b.updatedAt - a.updatedAt);
       setUserMatches(sortedMatches);
-      console.log('Loaded matches:', sortedMatches.length); // Debug log
+      console.log('Loaded matches:', sortedMatches.length);
     } catch (error) {
       console.error('Failed to load matches:', error);
     }
@@ -405,16 +433,14 @@ function App() {
 
   const signOut = async () => {
     try {
+      console.log('Signing out user');
       await firebaseService.signOut();
-      setUser(null);
-      setMatch(null);
-      setMatchStarted(false);
-      setUserMatches([]);
       
       // Clear URL parameters
       window.history.replaceState({}, '', window.location.pathname);
     } catch (error) {
       console.error('Failed to sign out:', error);
+      alert('Failed to sign out. Please try again.');
     }
   };
 

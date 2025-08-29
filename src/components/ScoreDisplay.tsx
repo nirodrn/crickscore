@@ -268,7 +268,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
         {/* International Standard Footer Overlay */}
         {overlaySettings?.showOverlay && !showFullscreenPanel && (
-          <div className="overlay-footer-container">
+          <div className="fixed bottom-0 left-0 right-0 z-50">
             <div 
               className="international-cricket-footer"
               style={{
@@ -405,7 +405,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
         {/* Side Panels */}
         {realtimeSettings?.showPlayerStats && realtimeSettings?.showSidePanels && !showFullscreenPanel && (
-          <div className="fixed top-4 right-4 w-80">
+          <div className="fixed bottom-32 right-4 w-80">
             <div className="cricket-panel bg-black/30 backdrop-blur-md rounded-lg p-4 border border-white/20">
               <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
                 <span>Live Stats</span>
@@ -442,7 +442,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
         {/* Run Rate Chart */}
         {realtimeSettings?.showRunRateChart && realtimeSettings?.showSidePanels && !showFullscreenPanel && (
-          <div className="fixed top-4 left-4 w-80">
+          <div className="fixed bottom-32 left-4 w-80">
             <div className="cricket-panel bg-black/30 backdrop-blur-md rounded-lg p-4 border border-white/20">
               <h3 className="text-lg font-semibold mb-3">Run Rate Trend</h3>
               

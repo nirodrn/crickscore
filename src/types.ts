@@ -126,6 +126,7 @@ export interface MatchState {
   teamB: Team;
   tossWinner?: 'A' | 'B';
   elected?: 'bat' | 'bowl';
+  tournamentName?: string;
   currentInnings: 1 | 2;
   innings1: InningsState;
   innings2?: InningsState;

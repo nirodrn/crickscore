@@ -22,6 +22,16 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
     const newSettings = { ...overlaySettings, [key]: value };
     setOverlaySettings(newSettings);
     await saveOverlaySettingsToFirebase(user.uid, newSettings);
+    
+    // Also update theme settings if it's a theme-related setting
+    const themeKeys = ['primaryColor', 'secondaryColor', 'accentColor', 'textColor', 'teamAColor', 'teamBColor', 'teamAOpacity', 'teamBOpacity'];
+    if (themeKeys.includes(key)) {
+      const themeSettings = LocalStorageManager.getThemeSettings();
+      const updatedThemeSettings = { ...themeSettings, [key]: value };
+      LocalStorageManager.saveThemeSettings(updatedThemeSettings);
+      await firebaseService.saveThemeSettings(user.uid, updatedThemeSettings);
+    }
+    
     onUpdateOverlaySettings(newSettings);
   };
 
@@ -50,15 +60,32 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
 
   const triggerPanelWithAnimation = (panelType: string) => {
     // Add animation class to button
-    const button = document.querySelector(`[data-panel="${panelType}"]`);
-    if (button) {
-      button.classList.add('animate-pulse', 'scale-110');
+    const panelButton = document.querySelector(`[data-panel="${panelType}"]`);
+    if (panelButton) {
+      panelButton.classList.add('animate-pulse', 'scale-110');
       setTimeout(() => {
-        button.classList.remove('animate-pulse', 'scale-110');
+        panelButton.classList.remove('animate-pulse', 'scale-110');
       }, 1000);
     }
     
     updateSetting(`trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`, Date.now());
+    
+    // Also publish the trigger to public overlay settings for real-time updates
+    const publishTrigger = async () => {
+      try {
+        const { publishOverlaySettingsToPublic } = await import('../firebase');
+        const currentSettings = await getOverlaySettingsFromFirebase(firebaseService.getCurrentUser()?.uid || '');
+        const updatedSettings = {
+          ...currentSettings,
+          [`trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`]: Date.now()
+        };
+        await publishOverlaySettingsToPublic(match.id, updatedSettings);
+      } catch (error) {
+        console.error('Failed to publish trigger to public settings:', error);
+      }
+    };
+    
+    publishTrigger();
   };
 
   if (!overlaySettings) {

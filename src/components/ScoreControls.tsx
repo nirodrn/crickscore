@@ -43,6 +43,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
   const handleRunClick = (runs: number) => {
     const updatedMatch = { ...match };
     CricketScorer.applyRun(updatedMatch, runs);
+    
+    // Check if innings is complete after this ball
+    if (CricketScorer.isInningsComplete(updatedMatch)) {
+      const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+      currentInnings.isComplete = true;
+    }
+    
     onUpdateMatch(updatedMatch);
   };
 
@@ -54,6 +61,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const additionalRuns = parseInt(customRuns) || 0;
     const updatedMatch = { ...match };
     CricketScorer.applyWide(updatedMatch, additionalRuns);
+    
+    // Check if innings is complete
+    if (CricketScorer.isInningsComplete(updatedMatch)) {
+      const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+      currentInnings.isComplete = true;
+    }
+    
     onUpdateMatch(updatedMatch);
     setCustomRuns('');
   };
@@ -62,6 +76,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const batRuns = parseInt(customRuns) || 0;
     const updatedMatch = { ...match };
     CricketScorer.applyNoBall(updatedMatch, batRuns);
+    
+    // Check if innings is complete
+    if (CricketScorer.isInningsComplete(updatedMatch)) {
+      const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+      currentInnings.isComplete = true;
+    }
+    
     onUpdateMatch(updatedMatch);
     setCustomRuns('');
   };
@@ -70,6 +91,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const runs = parseInt(customRuns) || 1;
     const updatedMatch = { ...match };
     CricketScorer.applyBye(updatedMatch, runs);
+    
+    // Check if innings is complete
+    if (CricketScorer.isInningsComplete(updatedMatch)) {
+      const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+      currentInnings.isComplete = true;
+    }
+    
     onUpdateMatch(updatedMatch);
     setCustomRuns('');
   };
@@ -78,6 +106,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const runs = parseInt(customRuns) || 1;
     const updatedMatch = { ...match };
     CricketScorer.applyLegBye(updatedMatch, runs);
+    
+    // Check if innings is complete
+    if (CricketScorer.isInningsComplete(updatedMatch)) {
+      const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+      currentInnings.isComplete = true;
+    }
+    
     onUpdateMatch(updatedMatch);
     setCustomRuns('');
   };
@@ -88,10 +123,16 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     const applied = CricketScorer.applyWicket(updatedMatch, wicketType, fielder || undefined, runs);
     
     if (applied) {
+      // Check if innings is complete after wicket
+      if (CricketScorer.isInningsComplete(updatedMatch)) {
+        const currentInnings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+        currentInnings.isComplete = true;
+      }
+      
       onUpdateMatch(updatedMatch);
       
       // Show batsman selection if there are available batsmen
-      if (availableBatsmen.length > 0) {
+      if (availableBatsmen.length > 0 && !CricketScorer.isInningsComplete(updatedMatch)) {
         setShowBatsmanModal(true);
       }
     }

@@ -437,7 +437,7 @@ export class CricketScorer {
       e.overNumber === innings.overNumber && e.kind !== 'dead'
     );
 
-    return currentOverEvents.map(event => {
+    const balls = currentOverEvents.map(event => {
       const item: BallDisplayItem = {
         value: '',
         type: 'dot',
@@ -490,6 +490,14 @@ export class CricketScorer {
 
       return item;
     });
+
+    // Ensure we don't exceed reasonable display limits for current over
+    // If there are too many extras, show only the most recent balls
+    if (balls.length > 12) {
+      return balls.slice(-12);
+    }
+
+    return balls;
   }
 
   static getOverBalls(innings: InningsState, overNumber: number): BallDisplayItem[] {

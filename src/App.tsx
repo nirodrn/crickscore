@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MatchState, InningsState, Team, PlayerRef, User } from './types';
-import { firebaseService, getPublicMatchFromFirebase, subscribeToPublicMatch, getOverlaySettingsForMatch } from './firebase';
+import { firebaseService, getPublicMatchFromFirebase, subscribeToPublicMatch, getOverlaySettingsForMatch, saveOverlaySettingsToFirebase } from './firebase';
 import { LocalStorageManager } from './utils/localStorage';
 import { MatchSetup } from './components/MatchSetup';
 import { ScoreControls } from './components/ScoreControls';
@@ -118,9 +118,48 @@ function App() {
       setUser(user);
       if (user) {
         loadUserMatches();
+        loadThemeSettings();
       }
     });
   }, []);
+
+  // Load theme settings when user changes
+  const loadThemeSettings = async () => {
+    const user = firebaseService.getCurrentUser();
+    if (!user) return;
+
+    try {
+      const themeSettings = await firebaseService.getThemeSettings(user.uid);
+      
+      if (themeSettings) {
+        LocalStorageManager.saveThemeSettings(themeSettings);
+        
+        // Apply theme settings to overlay settings
+        const overlaySettings = LocalStorageManager.getOverlaySettings();
+        const mergedSettings = {
+          ...overlaySettings,
+          ...themeSettings,
+          styleSettings: {
+            ...overlaySettings.styleSettings,
+            ...themeSettings
+          }
+        };
+        LocalStorageManager.saveOverlaySettings(mergedSettings);
+        
+        // Save to Firebase for real-time access
+        await saveOverlaySettingsToFirebase(user.uid, mergedSettings);
+      }
+    } catch (error) {
+      console.error('Failed to load theme settings:', error);
+    }
+  };
+
+  // Load theme settings when match starts
+  useEffect(() => {
+    if (matchStarted && user) {
+      loadThemeSettings();
+    }
+  }, [matchStarted, user]);
 
   // Load user matches when user changes
   useEffect(() => {
@@ -185,6 +224,10 @@ function App() {
       newMatch.id = matchId;
       setMatch(newMatch);
       setMatchStarted(false);
+      
+      // Load and apply theme settings for new match
+      await loadThemeSettings();
+      
       loadUserMatches();
       
       // Update URL with new match ID

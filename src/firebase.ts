@@ -95,6 +95,71 @@ const app = initializeApp(firebaseConfig);
 export const database = getDatabase(app);
 export const auth = getAuth(app);
 
+// Player Database Management
+export async function savePlayerToDatabase(userId: string, player: any) {
+  const playerRef = ref(database, `users/${userId}/players/${player.id}`);
+  const playerData = {
+    ...player,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  
+  // Remove undefined values to prevent Firebase errors
+  const cleanedPlayerData = removeUndefined(playerData);
+  await set(playerRef, playerData);
+}
+
+export async function getPlayersFromDatabase(userId: string): Promise<any[]> {
+  const playersRef = ref(database, `users/${userId}/players`);
+  const snapshot = await get(playersRef);
+  if (snapshot.exists()) {
+    return Object.values(snapshot.val());
+  }
+  return [];
+}
+
+// Theme Settings Management
+export async function saveThemeSettingsToFirebase(userId: string, themeSettings: any) {
+  const themeRef = ref(database, `users/${userId}/themeSettings`);
+  await set(themeRef, {
+    ...themeSettings,
+    updatedAt: Date.now()
+  });
+}
+
+export async function getThemeSettingsFromFirebase(userId: string): Promise<any> {
+  const themeRef = ref(database, `users/${userId}/themeSettings`);
+  const snapshot = await get(themeRef);
+  if (snapshot.exists()) {
+    return snapshot.val();
+  }
+  // Default theme settings
+  return {
+    primaryColor: '#1e3a8a',
+    secondaryColor: '#1d4ed8',
+    accentColor: '#3b82f6',
+    textColor: '#ffffff',
+    teamAColor: '#3b82f6',
+    teamBColor: '#ef4444',
+    teamAOpacity: 0.9,
+    teamBOpacity: 0.9,
+    footerBgColor: '#1e3a8a',
+    footerTextColor: '#ffffff',
+    footerBorderRadius: 8,
+    footerPadding: 16,
+    footerTextAlignment: 'center',
+    footerGradient: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+    panelBgColor: '#1e3a8a',
+    panelTextColor: '#ffffff',
+    panelBorderRadius: 12,
+    panelPadding: 24,
+    panelGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+    ballIndicatorSize: 32,
+    ballIndicatorSpacing: 8,
+    customCSS: ''
+  };
+}
+
 // Utility function to recursively remove undefined values from objects
 function removeUndefined(obj: any): any {
   if (obj === null || typeof obj !== 'object') {
@@ -124,6 +189,22 @@ export class FirebaseService {
       FirebaseService.instance = new FirebaseService();
     }
     return FirebaseService.instance;
+  }
+
+  async savePlayerToDatabase(userId: string, player: any): Promise<void> {
+    await savePlayerToDatabase(userId, player);
+  }
+
+  async getPlayersFromDatabase(userId: string): Promise<any[]> {
+    return await getPlayersFromDatabase(userId);
+  }
+
+  async saveThemeSettings(userId: string, themeSettings: any): Promise<void> {
+    await saveThemeSettingsToFirebase(userId, themeSettings);
+  }
+
+  async getThemeSettings(userId: string): Promise<any> {
+    return await getThemeSettingsFromFirebase(userId);
   }
 
   constructor() {
@@ -350,9 +431,26 @@ export function subscribeToPublicMatch(matchId: string, callback: (match: MatchS
 
 export async function getOverlaySettingsForMatch(matchId: string): Promise<any> {
   try {
+    // First try to get match-specific overlay settings
     const settingsRef = ref(database, `overlay_settings/${matchId}`);
     const snapshot = await get(settingsRef);
-    if (snapshot.exists()) return snapshot.val();
+    if (snapshot.exists()) {
+      return snapshot.val();
+    }
+    
+    // If no match-specific settings, try to get from the match owner's settings
+    const matchRef = ref(database, `public_matches/${matchId}`);
+    const matchSnapshot = await get(matchRef);
+    if (matchSnapshot.exists()) {
+      const matchData = matchSnapshot.val();
+      if (matchData.ownerId) {
+        const userSettingsRef = ref(database, `users/${matchData.ownerId}/overlaySettings`);
+        const userSettingsSnapshot = await get(userSettingsRef);
+        if (userSettingsSnapshot.exists()) {
+          return userSettingsSnapshot.val();
+        }
+      }
+    }
   } catch (error) {
     console.error('Failed to fetch overlay settings for match:', error);
   }
@@ -382,13 +480,39 @@ export async function getOverlaySettingsForMatch(matchId: string): Promise<any> 
 export async function publishMatchToPublic(match: MatchState): Promise<void> {
   try {
     const publicRef = ref(database, `public_matches/${match.id}`);
-    const payload = removeUndefined({ ...match, updatedAt: Date.now() });
+    const payload = removeUndefined({ 
+      ...match, 
+      updatedAt: Date.now(),
+      ownerId: firebaseService.getCurrentUser()?.uid // Add owner ID for settings lookup
+    });
     // Debug: log publish intent
     // eslint-disable-next-line no-console
     console.debug('[firebase] publishing match to public_matches', { matchId: match.id, updatedAt: payload.updatedAt });
     await set(publicRef, payload);
+    
+    // Also publish overlay settings for this match
+    const user = firebaseService.getCurrentUser();
+    if (user) {
+      const overlaySettings = await getOverlaySettingsFromFirebase(user.uid);
+      const overlayRef = ref(database, `overlay_settings/${match.id}`);
+      await set(overlayRef, removeUndefined(overlaySettings));
+    }
   } catch (error) {
     console.error('Failed to publish match to public_matches:', error);
+    throw error;
+  }
+}
+
+// Publish overlay settings to public for real-time panel triggers
+export async function publishOverlaySettingsToPublic(matchId: string, settings: any): Promise<void> {
+  try {
+    const overlayRef = ref(database, `overlay_settings/${matchId}`);
+    await set(overlayRef, removeUndefined({
+      ...settings,
+      updatedAt: Date.now()
+    }));
+  } catch (error) {
+    console.error('Failed to publish overlay settings to public:', error);
     throw error;
   }
 }
@@ -414,6 +538,56 @@ export async function getPublicMatchWithRetry(matchId: string, maxRetries: numbe
     }
   }
   return null;
+}
+
+// Subscribe to public overlay settings for real-time panel triggers
+export function subscribeToPublicOverlaySettings(matchId: string, callback: (settings: any) => void): () => void {
+  const settingsRef = ref(database, `overlay_settings/${matchId}`);
+  
+  const unsubscribe = onValue(settingsRef, (snapshot) => {
+    const settings = snapshot.exists() ? snapshot.val() : null;
+    callback(settings);
+  }, (error) => {
+    console.error('Failed to subscribe to public overlay settings:', error);
+    callback(null);
+  });
+  
+  return () => {
+    off(settingsRef);
+    if (unsubscribe) unsubscribe();
+  };
+}
+
+// Enhanced overlay settings with real-time sync for unauthenticated users
+export async function getPublicOverlaySettings(matchId: string): Promise<any> {
+  try {
+    const settingsRef = ref(database, `overlay_settings/${matchId}`);
+    const snapshot = await get(settingsRef);
+    if (snapshot.exists()) {
+      return snapshot.val();
+    }
+  } catch (error) {
+    console.error('Failed to get public overlay settings:', error);
+  }
+  
+  // Return default settings
+  return {
+    showOverlay: true,
+    showPlayerStats: true,
+    showRunRateChart: true,
+    primaryColor: '#1e3a8a',
+    secondaryColor: '#1d4ed8',
+    accentColor: '#3b82f6',
+    textColor: '#ffffff',
+    teamAColor: '#3b82f6',
+    teamBColor: '#ef4444',
+    styleSettings: {
+      footerBgColor: '#1e3a8a',
+      footerTextColor: '#ffffff',
+      footerGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)',
+      ballIndicatorSize: 28
+    }
+  };
 }
 
 // Subscribe to public match with enhanced error handling

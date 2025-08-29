@@ -137,7 +137,10 @@ export class LocalStorageManager {
   // Overlay Settings
   static saveOverlaySettings(settings: any): void {
     try {
-      localStorage.setItem(this.KEYS.OVERLAY_SETTINGS, JSON.stringify(settings));
+      localStorage.setItem(this.KEYS.OVERLAY_SETTINGS, JSON.stringify({
+        ...settings,
+        savedAt: Date.now()
+      }));
     } catch (error) {
       console.error('Failed to save overlay settings:', error);
     }
@@ -207,6 +210,60 @@ export class LocalStorageManager {
           ballIndicatorSpacing: 8,
           customCSS: ''
         }
+      };
+    }
+  }
+
+  // Theme Settings Management
+  static saveThemeSettings(themeSettings: any): void {
+    try {
+      localStorage.setItem('cricketZCore_themeSettings', JSON.stringify({
+        ...themeSettings,
+        savedAt: Date.now()
+      }));
+    } catch (error) {
+      console.error('Failed to save theme settings:', error);
+    }
+  }
+
+  static getThemeSettings(): any {
+    try {
+      const settings = localStorage.getItem('cricketZCore_themeSettings');
+      return settings ? JSON.parse(settings) : {
+        primaryColor: '#1e3a8a',
+        secondaryColor: '#1d4ed8',
+        accentColor: '#3b82f6',
+        textColor: '#ffffff',
+        teamAColor: '#3b82f6',
+        teamBColor: '#ef4444',
+        teamAOpacity: 0.9,
+        teamBOpacity: 0.9,
+        footerBgColor: '#1e3a8a',
+        footerTextColor: '#ffffff',
+        footerBorderRadius: 8,
+        footerPadding: 16,
+        footerTextAlignment: 'center',
+        footerGradient: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+        panelBgColor: '#1e3a8a',
+        panelTextColor: '#ffffff',
+        panelBorderRadius: 12,
+        panelPadding: 24,
+        panelGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+        ballIndicatorSize: 32,
+        ballIndicatorSpacing: 8,
+        customCSS: ''
+      };
+    } catch (error) {
+      console.error('Failed to get theme settings:', error);
+      return {
+        primaryColor: '#1e3a8a',
+        secondaryColor: '#1d4ed8',
+        accentColor: '#3b82f6',
+        textColor: '#ffffff',
+        teamAColor: '#3b82f6',
+        teamBColor: '#ef4444',
+        teamAOpacity: 0.9,
+        teamBOpacity: 0.9
       };
     }
   }

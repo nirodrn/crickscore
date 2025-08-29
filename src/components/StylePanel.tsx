@@ -69,7 +69,22 @@ export const StylePanel: React.FC<StylePanelProps> = ({ onClose, matchId }) => {
       };
       
       await saveOverlaySettingsToFirebase(user.uid, updatedSettings);
+      
+      // Also save theme settings separately for easier access
+      await firebaseService.saveThemeSettings(user.uid, {
+        ...styleSettings,
+        primaryColor: currentSettings.primaryColor,
+        secondaryColor: currentSettings.secondaryColor,
+        accentColor: currentSettings.accentColor,
+        textColor: currentSettings.textColor,
+        teamAColor: currentSettings.teamAColor,
+        teamBColor: currentSettings.teamBColor,
+        teamAOpacity: currentSettings.teamAOpacity,
+        teamBOpacity: currentSettings.teamBOpacity
+      });
+      
       LocalStorageManager.saveOverlaySettings(updatedSettings);
+      LocalStorageManager.saveThemeSettings(styleSettings);
       
       alert('Style settings saved successfully!');
     } catch (error) {

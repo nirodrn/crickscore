@@ -98,6 +98,7 @@ export class CricketScorer {
     const event: BallEvent = {
       id: `${Date.now()}_${Math.random()}`,
       overNumber: innings.overNumber,
+      // No-ball is NOT a legal ball - no legalBallInOver assigned
       kind: 'noball',
       runsBat: batRuns,
       runsExtra: 1,
@@ -112,6 +113,9 @@ export class CricketScorer {
 
     // Rotate strike if odd total runs
     this.rotateStrikeIfOdd(1 + batRuns, innings);
+
+    // No-ball does NOT increment legalBallsInCurrentOver
+    // Over continues until 6 legal balls are bowled
 
     // Update bowler stats
     this.updateBowlerStats(match, 1 + batRuns, 0);
@@ -128,6 +132,7 @@ export class CricketScorer {
     const event: BallEvent = {
       id: `${Date.now()}_${Math.random()}`,
       overNumber: innings.overNumber,
+      // Wide is NOT a legal ball - no legalBallInOver assigned
       kind: 'wide',
       runsExtra: totalRuns,
       strikerIdBefore: innings.strikerId,
@@ -141,6 +146,9 @@ export class CricketScorer {
 
     // Rotate strike if odd total runs
     this.rotateStrikeIfOdd(totalRuns, innings);
+
+    // Wide does NOT increment legalBallsInCurrentOver
+    // Over continues until 6 legal balls are bowled
 
     // Update bowler stats
     this.updateBowlerStats(match, totalRuns, 0);
@@ -335,7 +343,14 @@ export class CricketScorer {
 
     bowler.bowlingStats.runs += runs;
     bowler.bowlingStats.wickets += wickets;
-    bowler.bowlingStats.balls++;
+    
+    // Only increment balls for legal deliveries
+    // This is called from applyRun, applyBye, applyLegBye, applyWicket (legal balls)
+    // NOT called from applyWide, applyNoBall (illegal balls)
+    const lastEvent = innings.events[innings.events.length - 1];
+    if (lastEvent && lastEvent.legalBallInOver !== undefined) {
+      bowler.bowlingStats.balls++;
+    }
 
     // Update overs (every 6 balls)
     if (bowler.bowlingStats.balls % 6 === 0) {
@@ -433,6 +448,7 @@ export class CricketScorer {
   }
 
   static getCurrentOverBalls(innings: InningsState): BallDisplayItem[] {
+    // Get ALL balls bowled in the current over (including illegal deliveries)
     const currentOverEvents = innings.events.filter(e => 
       e.overNumber === innings.overNumber && e.kind !== 'dead'
     );
@@ -491,11 +507,8 @@ export class CricketScorer {
       return item;
     });
 
-    // Ensure we don't exceed reasonable display limits for current over
-    // If there are too many extras, show only the most recent balls
-    if (balls.length > 12) {
-      return balls.slice(-12);
-    }
+    // Return ALL balls in the current over (may be more than 6 due to extras)
+    // This allows proper visualization of extended overs
 
     return balls;
   }

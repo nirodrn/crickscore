@@ -280,6 +280,14 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                       <div className="match-score">
                         {battingTeam.score}-{battingTeam.wickets}
                       </div>
+                      <div className="run-rate-display">
+                        RR: {calculateRunRate().toFixed(2)}
+                      </div>
+                      {requiredRunRate !== null && (
+                        <div className="required-rate-display">
+                          REQ: {requiredRunRate.toFixed(2)}
+                        </div>
+                      )}
                       <div className="innings-indicator">
                         {innings.powerplayActive ? `P${innings.powerplayOversRemaining || 1}` : `P${match.currentInnings}`}
                       </div>
@@ -301,7 +309,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                       </div>
                     </div>
                     <div className="current-over-balls">
-                      {currentOverBalls.slice(-6).map((ball, index) => (
+                      {/* Show ALL balls in current over, including extras */}
+                      {currentOverBalls.map((ball, index) => (
                         <div
                           key={index}
                           className={`ball-dot ${ball.type}`}
@@ -309,8 +318,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                           {ball.value === '•' ? '' : ball.value}
                         </div>
                       ))}
-                      {/* Fill remaining balls */}
-                      {Array.from({ length: Math.max(0, 6 - currentOverBalls.length) }, (_, index) => (
+                      {/* Fill remaining legal balls only if under 6 legal balls */}
+                      {Array.from({ length: Math.max(0, 6 - innings.legalBallsInCurrentOver) }, (_, index) => (
                         <div key={`empty-${index}`} className="ball-dot empty"></div>
                       ))}
                     </div>
@@ -468,7 +477,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
               <>
                 {/* Current Over Balls */}
                 <div className="flex justify-center mb-4">
-                  <div className="cricket-over-container flex flex-wrap justify-center gap-2 max-w-sm">
+                  <div className="cricket-over-container flex flex-wrap justify-center gap-2 max-w-lg">
+                    {/* Show ALL balls in current over */}
                     {currentOverBalls.map((ball, index) => (
                       <div
                         key={index}
@@ -477,8 +487,8 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                         {ball.value}
                       </div>
                     ))}
-                    {/* Fill remaining balls */}
-                    {Array.from({ length: Math.max(0, 6 - currentOverBalls.length) }, (_, index) => (
+                    {/* Fill remaining legal balls only */}
+                    {Array.from({ length: Math.max(0, 6 - innings.legalBallsInCurrentOver) }, (_, index) => (
                       <div
                         key={`empty-${index}`}
                         className="ball-indicator empty"

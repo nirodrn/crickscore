@@ -623,6 +623,24 @@ body {
   font-weight: 600;
 }
 
+.run-rate-display {
+  background: #10b981;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 15px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.required-rate-display {
+  background: #ef4444;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 15px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .tournament-info {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.8);
@@ -660,18 +678,19 @@ body {
 .current-over-balls {
   display: flex;
   justify-content: flex-end;
-  gap: 0.25rem;
+  gap: 0.2rem;
   flex-wrap: wrap;
+  max-width: 200px; /* Limit width to prevent overflow */
 }
 
 .ball-dot {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   font-weight: 700;
   border: 1px solid rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
@@ -722,6 +741,18 @@ body {
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.4);
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* Enhanced ball indicators for extended overs */
+.ball-dot.illegal {
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 4px rgba(251, 191, 36, 0.5);
+}
+
+.ball-indicator.illegal {
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+  animation: pulse 2s infinite;
 }
 
 /* Interval Display */
@@ -785,6 +816,10 @@ body {
   .match-info-section {
     padding: 0 1rem;
   }
+  
+  .current-over-balls {
+    max-width: 150px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -815,7 +850,9 @@ body {
   
   .team-vs-display,
   .match-score,
-  .innings-indicator {
+  .innings-indicator,
+  .run-rate-display,
+  .required-rate-display {
     font-size: 0.7rem;
     padding: 0.2rem 0.5rem;
   }
@@ -829,13 +866,14 @@ body {
   }
   
   .ball-dot {
-    width: 14px;
-    height: 14px;
-    font-size: 0.5rem;
+    width: 12px;
+    height: 12px;
+    font-size: 0.45rem;
   }
   
   .current-over-balls {
-    gap: 0.15rem;
+    gap: 0.1rem;
+    max-width: 120px;
   }
 }
 /* Improved panel animations */

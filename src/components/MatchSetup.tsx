@@ -17,6 +17,8 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
   const [newPlayerImageUrl, setNewPlayerImageUrl] = useState('');
   const [savedPlayers, setSavedPlayers] = useState<PlayerRef[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<'T20' | 'ODI' | 'Test' | 'Custom' | null>(null);
+  const [customOvers, setCustomOvers] = useState<number | undefined>(undefined);
 
   // Load saved players from Firebase
   useEffect(() => {
@@ -157,12 +159,27 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     );
   };
 
-  const setMatchFormat = (format: 'T20' | 'ODI' | 'Test' | 'Custom') => {
-    const maxOvers = format === 'T20' ? 20 : format === 'ODI' ? 50 : format === 'Test' ? undefined : undefined;
-    updateMatchField('innings1.maxOvers', maxOvers);
-    if (format !== 'Custom') {
-      updateMatchField('tournamentName', `${format} Match`);
+  const selectFormat = (format: 'T20' | 'ODI' | 'Test' | 'Custom') => {
+    setSelectedFormat(format);
+    if (format === 'Custom') {
+      setCustomOvers(undefined);
+    } else {
+      const maxOvers = format === 'T20' ? 20 : format === 'ODI' ? 50 : format === 'Test' ? undefined : undefined;
+      setCustomOvers(maxOvers);
     }
+  };
+
+  const confirmMatchFormat = () => {
+    if (!selectedFormat) return;
+    
+    updateMatchField('innings1.maxOvers', customOvers);
+    if (selectedFormat !== 'Custom') {
+      updateMatchField('tournamentName', `${selectedFormat} Match`);
+    }
+    
+    // Clear selection after confirmation
+    setSelectedFormat(null);
+    setCustomOvers(undefined);
   };
 
   const canStartMatch = () => {
@@ -268,9 +285,9 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                 ].map((fmt) => (
                   <button
                     key={fmt.format}
-                    onClick={() => setMatchFormat(fmt.format as any)}
+                    onClick={() => selectFormat(fmt.format as any)}
                     className={`p-4 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
-                      match.innings1.maxOvers === fmt.overs
+                      selectedFormat === fmt.format
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
@@ -281,7 +298,7 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                 ))}
               </div>
 
-              {(!match.innings1.maxOvers || match.tournamentName === 'Custom Match') && (
+              {selectedFormat === 'Custom' && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Custom Overs per Innings
@@ -290,11 +307,49 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                     type="number"
                     min="1"
                     max="50"
-                    value={match.innings1.maxOvers || ''}
-                    onChange={(e) => updateMatchField('innings1.maxOvers', parseInt(e.target.value) || undefined)}
+                    value={customOvers || ''}
+                    onChange={(e) => setCustomOvers(parseInt(e.target.value) || undefined)}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter number of overs"
                   />
+                </div>
+              )}
+
+              {selectedFormat && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={confirmMatchFormat}
+                    disabled={selectedFormat === 'Custom' && !customOvers}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    Confirm {selectedFormat} Format
+                    {selectedFormat === 'Custom' && customOvers && ` (${customOvers} Overs)`}
+                    {selectedFormat !== 'Custom' && customOvers !== undefined && ` (${customOvers || 'Unlimited'} Overs)`}
+                  </button>
+                </div>
+              )}
+
+              {match.innings1.maxOvers !== undefined && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-green-800">
+                        Format Confirmed: {match.tournamentName || 'Custom Match'}
+                      </div>
+                      <div className="text-sm text-green-600">
+                        {match.innings1.maxOvers ? `${match.innings1.maxOvers} overs per innings` : 'Unlimited overs'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        updateMatchField('innings1.maxOvers', undefined);
+                        updateMatchField('tournamentName', undefined);
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Change Format
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

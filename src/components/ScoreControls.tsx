@@ -29,6 +29,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
   const striker = battingTeam.players.find(p => p.id === innings.strikerId);
   const nonStriker = battingTeam.players.find(p => p.id === innings.nonStrikerId);
   const bowler = bowlingTeam.players.find(p => p.id === innings.bowlerId);
+  const currentOverBalls = CricketScorer.getCurrentOverBalls(innings);
 
   const availableBatsmen = battingTeam.players.filter(p => 
     !p.isOut && p.id !== innings.strikerId && p.id !== innings.nonStrikerId
@@ -255,6 +256,35 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
             </div>
           </div>
         )}
+
+        {/* Current Over Balls */}
+        <div className="flex justify-center mb-4">
+          <div className="cricket-over-container flex flex-wrap justify-center gap-2 max-w-lg">
+            <div className="text-xs text-gray-500 w-full text-center mb-2">
+              Current Over: {innings.legalBallsInCurrentOver}/6 legal balls ({currentOverBalls.length} total deliveries)
+            </div>
+            {/* Show ALL balls in current over */}
+            {currentOverBalls.map((ball, index) => (
+              <div
+                key={index}
+                className={`ball-indicator ${ball.type} ${ball.isFreeHit ? 'free-hit-blink' : ''} ${
+                  ball.type === 'wide' || ball.type === 'noball' ? 'illegal' : ''
+                }`}
+              >
+                {ball.value}
+              </div>
+            ))}
+            {/* Fill remaining legal balls only */}
+            {Array.from({ length: Math.max(0, 6 - innings.legalBallsInCurrentOver) }, (_, index) => (
+              <div
+                key={`empty-${index}`}
+                className="ball-indicator empty"
+              >
+                -
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Runs */}
         <div className="mb-4">

@@ -5,6 +5,9 @@ import { MatchSummaryPanel } from './MatchSummaryPanel';
 import { WicketFallChartPanel } from './WicketFallChartPanel';
 import { TeamComparisonPanel } from './TeamComparisonPanel';
 import { RunRateAnalysisPanel } from './RunRateAnalysisPanel';
+import { BatsmanSummaryPanel } from './BatsmanSummaryPanel';
+import { BowlerSummaryPanel } from './BowlerSummaryPanel';
+import { WinnerPanel } from './WinnerPanel';
 import { LocalStorageManager } from '../utils/localStorage';
 
 interface PanelRouterProps {
@@ -53,6 +56,12 @@ export const PanelRouter: React.FC<PanelRouterProps> = ({ panel, match }) => {
         return <TeamComparisonPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'wicketFall':
         return <WicketFallChartPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+      case 'batsmanSummary':
+        return <BatsmanSummaryPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+      case 'bowlerSummary':
+        return <BowlerSummaryPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+      case 'winner':
+        return <WinnerPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       default:
         return <ScoreDisplay match={match} overlayMode={true} />;
     }

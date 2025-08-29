@@ -383,12 +383,72 @@ export async function publishMatchToPublic(match: MatchState): Promise<void> {
   try {
     const publicRef = ref(database, `public_matches/${match.id}`);
     const payload = removeUndefined({ ...match, updatedAt: Date.now() });
-  // Debug: log publish intent
-  // eslint-disable-next-line no-console
-  console.debug('[firebase] publishing match to public_matches', { matchId: match.id, updatedAt: payload.updatedAt });
-  await set(publicRef, payload);
+    // Debug: log publish intent
+    // eslint-disable-next-line no-console
+    console.debug('[firebase] publishing match to public_matches', { matchId: match.id, updatedAt: payload.updatedAt });
+    await set(publicRef, payload);
   } catch (error) {
     console.error('Failed to publish match to public_matches:', error);
     throw error;
   }
+}
+
+// Enhanced public match access for unauthenticated users
+export async function getPublicMatchWithRetry(matchId: string, maxRetries: number = 3): Promise<MatchState | null> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const publicMatch = await getPublicMatchFromFirebase(matchId);
+      if (publicMatch) {
+        return publicMatch;
+      }
+      
+      // If no public match found, wait a bit and retry
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed to fetch public match:`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+    }
+  }
+  return null;
+}
+
+// Subscribe to public match with enhanced error handling
+export function subscribeToPublicMatchWithRetry(matchId: string, callback: (match: MatchState | null) => void): () => void {
+  let unsubscribe: (() => void) | null = null;
+  let retryCount = 0;
+  const maxRetries = 5;
+  
+  const setupSubscription = () => {
+    try {
+      unsubscribe = subscribeToPublicMatch(matchId, (match) => {
+        retryCount = 0; // Reset retry count on successful update
+        callback(match);
+      });
+    } catch (error) {
+      console.error('Failed to setup public match subscription:', error);
+      
+      // Retry with exponential backoff
+      if (retryCount < maxRetries) {
+        retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Max 30 seconds
+        setTimeout(setupSubscription, delay);
+      } else {
+        // Fallback to cached data
+        const cachedMatch = LocalStorageManager.getCachedMatch(matchId);
+        callback(cachedMatch);
+      }
+    }
+  };
+  
+  setupSubscription();
+  
+  return () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
 }

@@ -41,14 +41,18 @@ function App() {
     }
 
     // No user: subscribe to public_matches path
-    const unsubscribePublic = subscribeToPublicMatch(match.id, (updatedMatch) => {
-      if (updatedMatch) {
-        setMatch(updatedMatch);
-        setMatchStarted(updatedMatch.innings1.events.length > 0);
-      }
-    });
+    (async () => {
+      const { subscribeToPublicMatchWithRetry } = await import('./firebase');
+      const unsubscribePublic = subscribeToPublicMatchWithRetry(match.id, (updatedMatch) => {
+        if (updatedMatch) {
+          setMatch(updatedMatch);
+          setMatchStarted(updatedMatch.innings1.events.length > 0);
+        }
+      });
+      return unsubscribePublic;
+    })();
 
-    return unsubscribePublic;
+    return () => {}; // Cleanup handled by the async function
   }, [overlayMode, match?.id, user]);
 
   // Check for overlay mode in URL
@@ -81,7 +85,8 @@ function App() {
       } else if (overlayParam === '1' || overlayParam === 'true') {
         // If overlay URL and no user, try to load public match from Firebase
         (async () => {
-          const publicMatch = await getPublicMatchFromFirebase(matchParam);
+          const { getPublicMatchWithRetry } = await import('./firebase');
+          const publicMatch = await getPublicMatchWithRetry(matchParam);
           if (publicMatch) {
             setMatch(publicMatch);
             setMatchStarted(publicMatch.innings1.events.length > 0);
@@ -592,7 +597,10 @@ function App() {
                     { key: 'runRate', name: 'Run Rate Analysis', icon: '📊' },
                     { key: 'matchSummary', name: 'Match Summary', icon: '🏆' },
                     { key: 'comparison', name: 'Team Comparison', icon: '📈' },
-                    { key: 'wicketFall', name: 'Wicket Fall Chart', icon: '📉' }
+                    { key: 'wicketFall', name: 'Wicket Fall Chart', icon: '📉' },
+                    { key: 'batsmanSummary', name: 'Batsman Summary', icon: '🏏' },
+                    { key: 'bowlerSummary', name: 'Bowler Summary', icon: '⚡' },
+                    { key: 'winner', name: 'Winner Panel', icon: '👑' }
                   ].map((panel) => (
                     <button
                       key={panel.key}

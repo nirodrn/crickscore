@@ -357,6 +357,36 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
               <span>Comparison</span>
               <Zap className="h-3 w-3 opacity-75" />
             </button>
+
+            <button
+              data-panel="batsmanSummary"
+              onClick={() => triggerPanelWithAnimation('batsmanSummary')}
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-lg hover:from-orange-700 hover:to-orange-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/25 animate-glow"
+            >
+              <Users className="h-4 w-4" />
+              <span>Batsmen</span>
+              <Zap className="h-3 w-3 opacity-75" />
+            </button>
+
+            <button
+              data-panel="bowlerSummary"
+              onClick={() => triggerPanelWithAnimation('bowlerSummary')}
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/25 animate-glow"
+            >
+              <Zap className="h-4 w-4" />
+              <span>Bowlers</span>
+              <Zap className="h-3 w-3 opacity-75" />
+            </button>
+
+            <button
+              data-panel="winner"
+              onClick={() => triggerPanelWithAnimation('winner')}
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-lg hover:from-yellow-700 hover:to-yellow-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/25 animate-glow"
+            >
+              <Award className="h-4 w-4" />
+              <span>Winner</span>
+              <Zap className="h-3 w-3 opacity-75" />
+            </button>
           </div>
           
           <button

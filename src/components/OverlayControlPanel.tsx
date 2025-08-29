@@ -14,6 +14,10 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
   const [overlaySettings, setOverlaySettings] = useState<any>(null);
   const [showPreview] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [powerplaySettings, setPowerplaySettings] = useState({
+    active: false,
+    oversRemaining: 6
+  });
 
   // Update settings and save to Firebase
   const updateSetting = async (key: string, value: any) => {
@@ -21,16 +25,13 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
     if (!user || !overlaySettings) return;
     const newSettings = { ...overlaySettings, [key]: value };
     setOverlaySettings(newSettings);
+    
+    // Save to Firebase
     await saveOverlaySettingsToFirebase(user.uid, newSettings);
     
-    // Also update theme settings if it's a theme-related setting
-    const themeKeys = ['primaryColor', 'secondaryColor', 'accentColor', 'textColor', 'teamAColor', 'teamBColor', 'teamAOpacity', 'teamBOpacity'];
-    if (themeKeys.includes(key)) {
-      const themeSettings = LocalStorageManager.getThemeSettings();
-      const updatedThemeSettings = { ...themeSettings, [key]: value };
-      LocalStorageManager.saveThemeSettings(updatedThemeSettings);
-      await firebaseService.saveThemeSettings(user.uid, updatedThemeSettings);
-    }
+    // Publish to public path for cross-network access
+    const { publishOverlaySettingsToPublic } = await import('../firebase');
+    await publishOverlaySettingsToPublic(match.id, newSettings);
     
     onUpdateOverlaySettings(newSettings);
   };
@@ -39,9 +40,23 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
   useEffect(() => {
     const fetchSettings = async () => {
       const user = firebaseService.getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        // For unauthenticated users, get public settings
+        const { getOverlaySettingsForMatch } = await import('../firebase');
+        const settings = await getOverlaySettingsForMatch(match.id);
+        setOverlaySettings(settings);
+        return;
+      }
+      
       const settings = await getOverlaySettingsFromFirebase(user.uid);
       setOverlaySettings(settings);
+      
+      // Also get powerplay status from match
+      const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
+      setPowerplaySettings({
+        active: innings.powerplayActive || false,
+        oversRemaining: innings.powerplayOversRemaining || 6
+      });
     };
     fetchSettings();
   }, []);
@@ -74,12 +89,16 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
     const publishTrigger = async () => {
       try {
         const { publishOverlaySettingsToPublic } = await import('../firebase');
-        const currentSettings = await getOverlaySettingsFromFirebase(firebaseService.getCurrentUser()?.uid || '');
+        const user = firebaseService.getCurrentUser();
+        if (!user) return;
+        
+        const currentSettings = await getOverlaySettingsFromFirebase(user.uid);
         const updatedSettings = {
           ...currentSettings,
           [`trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`]: Date.now()
         };
         await publishOverlaySettingsToPublic(match.id, updatedSettings);
+        console.debug('[overlay] published trigger', { panelType, matchId: match.id });
       } catch (error) {
         console.error('Failed to publish trigger to public settings:', error);
       }
@@ -130,6 +149,18 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
                 className="rounded"
               />
               <span>Show Player Stats Panels</span>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={overlaySettings.showSidePanels || false}
+                onChange={(e) => updateSetting('showSidePanels', e.target.checked)}
+                className="rounded"
+              />
+              <span>Show Side Stats Panels</span>
             </label>
           </div>
 
@@ -223,10 +254,64 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
         <div className="border-t pt-4 mb-6">
           <h4 className="font-medium text-gray-700 mb-3 flex items-center space-x-2">
             <Play className="h-4 w-4" />
-            <span>Innings Control</span>
+            <span>Match Control</span>
           </h4>
           
           <div className="space-y-3">
+            {/* Powerplay Controls */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-medium text-yellow-800">Powerplay Control</span>
+                <div className="text-sm text-yellow-600">
+                  {powerplaySettings.active ? `${powerplaySettings.oversRemaining} overs left` : 'Not active'}
+                </div>
+              </div>
+              
+              <div className="flex space-x-2">
+                <button
+                  onClick={async () => {
+                    const updatedMatch = { ...match };
+                    const innings = match.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+                    innings.powerplayActive = true;
+                    innings.powerplayOversRemaining = 6;
+                    setPowerplaySettings({ active: true, oversRemaining: 6 });
+                    
+                    // Update match in Firebase
+                    if (firebaseService.getCurrentUser()) {
+                      await firebaseService.updateMatch(match.id, updatedMatch);
+                      const { publishMatchToPublic } = await import('../firebase');
+                      await publishMatchToPublic(updatedMatch);
+                    }
+                  }}
+                  disabled={powerplaySettings.active}
+                  className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  Start Powerplay
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    const updatedMatch = { ...match };
+                    const innings = match.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+                    innings.powerplayActive = false;
+                    innings.powerplayOversRemaining = 0;
+                    setPowerplaySettings({ active: false, oversRemaining: 0 });
+                    
+                    // Update match in Firebase
+                    if (firebaseService.getCurrentUser()) {
+                      await firebaseService.updateMatch(match.id, updatedMatch);
+                      const { publishMatchToPublic } = await import('../firebase');
+                      await publishMatchToPublic(updatedMatch);
+                    }
+                  }}
+                  disabled={!powerplaySettings.active}
+                  className="flex-1 bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50"
+                >
+                  End Powerplay
+                </button>
+              </div>
+            </div>
+            
             <button
               onClick={handleEndInnings}
               className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition-all duration-200 hover:scale-105"

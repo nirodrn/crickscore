@@ -16,23 +16,27 @@ interface PanelRouterProps {
 }
 
 export const PanelRouter: React.FC<PanelRouterProps> = ({ panel, match }) => {
+  const [localMatch, setLocalMatch] = React.useState<MatchState | null>(match);
+
   // If no match provided, try to get from URL params and cache
   React.useEffect(() => {
-    if (!match) {
+    if (!localMatch) {
       const urlParams = new URLSearchParams(window.location.search);
       const matchParam = urlParams.get('match');
       
       if (matchParam) {
         const cachedMatch = LocalStorageManager.getCachedMatch(matchParam);
         if (cachedMatch) {
-          // Force re-render with cached match
-          window.location.reload();
+          setLocalMatch(cachedMatch);
         }
       }
     }
-  }, [match]);
+  }, [localMatch]);
 
-  if (!match) {
+  // Use localMatch if available, otherwise use prop
+  const activeMatch = localMatch || match;
+
+  if (!activeMatch) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-white text-center">
@@ -47,23 +51,23 @@ export const PanelRouter: React.FC<PanelRouterProps> = ({ panel, match }) => {
   const renderPanel = () => {
     switch (panel) {
       case 'playerStats':
-        return <ScoreDisplay match={match} overlayMode={true} forcePanel="playerStats" />;
+        return <ScoreDisplay match={activeMatch} overlayMode={true} forcePanel="playerStats" />;
       case 'runRate':
-        return <RunRateAnalysisPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <RunRateAnalysisPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'matchSummary':
-        return <MatchSummaryPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <MatchSummaryPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'comparison':
-        return <TeamComparisonPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <TeamComparisonPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'wicketFall':
-        return <WicketFallChartPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <WicketFallChartPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'batsmanSummary':
-        return <BatsmanSummaryPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <BatsmanSummaryPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'bowlerSummary':
-        return <BowlerSummaryPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <BowlerSummaryPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       case 'winner':
-        return <WinnerPanel match={match} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
+        return <WinnerPanel match={activeMatch} overlaySettings={LocalStorageManager.getOverlaySettings()} />;
       default:
-        return <ScoreDisplay match={match} overlayMode={true} />;
+        return <ScoreDisplay match={activeMatch} overlayMode={true} />;
     }
   };
 

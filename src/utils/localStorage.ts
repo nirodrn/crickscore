@@ -152,6 +152,7 @@ export class LocalStorageManager {
       return settings ? JSON.parse(settings) : {
         showOverlay: true,
         showPlayerStats: true,
+        showSidePanels: true,
         showRunRateChart: true,
         showFullscreenPlayerStats: false,
         showFullscreenRunRate: false,
@@ -174,6 +175,7 @@ export class LocalStorageManager {
       return {
         showOverlay: true,
         showPlayerStats: true,
+        showSidePanels: true,
         showRunRateChart: true,
         showFullscreenPlayerStats: false,
         showFullscreenRunRate: false,
@@ -243,7 +245,7 @@ export class LocalStorageManager {
         footerBorderRadius: 8,
         footerPadding: 16,
         footerTextAlignment: 'center',
-        footerGradient: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)',
+        footerGradient: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 50%, #a855f7 100%)',
         panelBgColor: '#1e3a8a',
         panelTextColor: '#ffffff',
         panelBorderRadius: 12,

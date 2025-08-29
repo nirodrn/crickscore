@@ -30,29 +30,36 @@ function App() {
   useEffect(() => {
     if (!overlayMode || !match?.id) return;
 
+    let unsubscribe: (() => void) | null = null;
+
     if (user) {
-      const unsubscribe = firebaseService.subscribeToMatch(match.id, (updatedMatch) => {
+      unsubscribe = firebaseService.subscribeToMatch(match.id, (updatedMatch) => {
         if (updatedMatch) {
           setMatch(updatedMatch);
           setMatchStarted(updatedMatch.innings1.events.length > 0);
         }
       });
-      return unsubscribe;
+    } else {
+      // For unauthenticated users, subscribe to public match data
+      const setupPublicSubscription = async () => {
+        const { subscribeToPublicMatchWithRetry } = await import('./firebase');
+        unsubscribe = subscribeToPublicMatchWithRetry(match.id, (updatedMatch) => {
+          if (updatedMatch) {
+            setMatch(updatedMatch);
+            setMatchStarted(updatedMatch.innings1.events.length > 0);
+            LocalStorageManager.cacheMatch(match.id, updatedMatch);
+          }
+        });
+      };
+      
+      setupPublicSubscription();
     }
 
-    // No user: subscribe to public_matches path
-    (async () => {
-      const { subscribeToPublicMatchWithRetry } = await import('./firebase');
-      const unsubscribePublic = subscribeToPublicMatchWithRetry(match.id, (updatedMatch) => {
-        if (updatedMatch) {
-          setMatch(updatedMatch);
-          setMatchStarted(updatedMatch.innings1.events.length > 0);
-        }
-      });
-      return unsubscribePublic;
-    })();
-
-    return () => {}; // Cleanup handled by the async function
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [overlayMode, match?.id, user]);
 
   // Check for overlay mode in URL
@@ -73,41 +80,25 @@ function App() {
 
     // Auto-load match if specified in URL (try cache first for overlay mode)
     if (matchParam) {
-      // Try cache first
-      const cachedMatch = LocalStorageManager.getCachedMatch(matchParam);
-      if (cachedMatch) {
-        setMatch(cachedMatch);
-        setMatchStarted(cachedMatch.innings1.events.length > 0);
-      }
-
       if (user) {
         loadMatch(matchParam);
       } else if (overlayParam === '1' || overlayParam === 'true') {
         // If overlay URL and no user, try to load public match from Firebase
-        (async () => {
+        const loadPublicMatch = async () => {
           const { getPublicMatchWithRetry } = await import('./firebase');
           const publicMatch = await getPublicMatchWithRetry(matchParam);
           if (publicMatch) {
             setMatch(publicMatch);
             setMatchStarted(publicMatch.innings1.events.length > 0);
-            LocalStorageManager.cacheMatch(matchParam, publicMatch);
           }
           // Also attempt to load overlay settings for this match
           const settings = await getOverlaySettingsForMatch(matchParam);
           if (settings) {
-            // Persist to local overlay storage so ScoreDisplay can read defaults
-            LocalStorageManager.saveOverlaySettings(settings);
+            console.log('Loaded overlay settings for match:', settings);
           }
-        })();
-      }
-    }
-    
-    // Try to restore current match from localStorage
-    if (!match && !matchParam) {
-      const savedMatch = LocalStorageManager.getCurrentMatch();
-      if (savedMatch) {
-        setMatch(savedMatch);
-        setMatchStarted(savedMatch.innings1.events.length > 0);
+        };
+        
+        loadPublicMatch();
       }
     }
   }, [user, overlayMode]);
@@ -132,10 +123,8 @@ function App() {
       const themeSettings = await firebaseService.getThemeSettings(user.uid);
       
       if (themeSettings) {
-        LocalStorageManager.saveThemeSettings(themeSettings);
-        
         // Apply theme settings to overlay settings
-        const overlaySettings = LocalStorageManager.getOverlaySettings();
+        const overlaySettings = await getOverlaySettingsFromFirebase(user.uid);
         const mergedSettings = {
           ...overlaySettings,
           ...themeSettings,
@@ -144,10 +133,15 @@ function App() {
             ...themeSettings
           }
         };
-        LocalStorageManager.saveOverlaySettings(mergedSettings);
         
-        // Save to Firebase for real-time access
+        // Save merged settings to Firebase for real-time access
         await saveOverlaySettingsToFirebase(user.uid, mergedSettings);
+        
+        // Publish to public for cross-network access
+        if (match?.id) {
+          const { publishOverlaySettingsToPublic } = await import('./firebase');
+          await publishOverlaySettingsToPublic(match.id, mergedSettings);
+        }
       }
     } catch (error) {
       console.error('Failed to load theme settings:', error);
@@ -240,14 +234,6 @@ function App() {
   };
 
   const loadMatch = async (matchId: string) => {
-    // Try cache first for faster loading
-    const cachedMatch = LocalStorageManager.getCachedMatch(matchId);
-    if (cachedMatch) {
-      setMatch(cachedMatch);
-      setMatchStarted(cachedMatch.innings1.events.length > 0);
-      LocalStorageManager.saveCurrentMatch(cachedMatch);
-    }
-    
     if (!user) return;
 
     try {
@@ -255,7 +241,6 @@ function App() {
       if (loadedMatch) {
         setMatch(loadedMatch);
         setMatchStarted(loadedMatch.innings1.events.length > 0);
-        LocalStorageManager.saveCurrentMatch(loadedMatch);
         
         // Update URL
         const url = new URL(window.location.href);
@@ -264,7 +249,6 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to load match:', error);
-      // If online load fails, we already have cached version loaded above
     }
   };
 
@@ -323,28 +307,30 @@ function App() {
     // Update match result
     CricketScorer.updateMatchResult(updatedMatch);
     
-    // Always save to localStorage immediately
-    LocalStorageManager.saveCurrentMatch(updatedMatch);
-    LocalStorageManager.cacheMatch(updatedMatch.id, updatedMatch);
-    
     if (user && updatedMatch.id) {
       try {
         await firebaseService.updateMatch(updatedMatch.id, updatedMatch);
+        
+        // CRITICAL: Always publish to public path for OBS overlay access
+        // This ensures unauthenticated users on different networks can access the match
+        const { publishMatchToPublic, publishOverlaySettingsToPublic } = await import('./firebase');
+        await publishMatchToPublic(updatedMatch);
+        
+        // Get and publish current overlay settings to public path
+        const overlaySettings = await getOverlaySettingsFromFirebase(user.uid);
+        await publishOverlaySettingsToPublic(updatedMatch.id, overlaySettings);
+        
       } catch (error) {
         console.error('Failed to update match:', error);
-        // Match is still saved locally, so overlay can continue working
       }
-    }
-    // If this match has been marked public, also publish it to the public_matches
-    // path so unauthenticated overlay viewers (OBS) receive realtime updates.
-    try {
-      if (updatedMatch.id && (updatedMatch as any).isPublic) {
-        // dynamic import avoids circular dependency
-        const mod = await import('./firebase');
-        await mod.publishMatchToPublic(updatedMatch);
+    } else {
+      // For unauthenticated users, still try to publish to public if possible
+      try {
+        const { publishMatchToPublic } = await import('./firebase');
+        await publishMatchToPublic(updatedMatch);
+      } catch (error) {
+        console.error('Failed to publish match for unauthenticated user:', error);
       }
-    } catch (e) {
-      console.error('Failed to publish match to public after update:', e);
     }
   };
 
@@ -423,10 +409,6 @@ function App() {
       setMatchStarted(false);
       setUserMatches([]);
       
-      // Clear all local storage
-      LocalStorageManager.clearUserSession();
-      LocalStorageManager.clearCurrentMatch();
-      
       // Clear URL parameters
       window.history.replaceState({}, '', window.location.pathname);
     } catch (error) {
@@ -458,11 +440,11 @@ function App() {
 
     return (
       <div className="min-h-screen bg-transparent">
-  {match ? (
+        {match ? (
           <div className="p-4">
             <ScoreDisplay match={match} overlayMode={true} />
           </div>
-  ) : (
+        ) : (
           <div className="flex items-center justify-center min-h-screen">
             <div className="bg-black/80 text-white p-8 rounded-lg text-center">
               <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />
@@ -502,39 +484,39 @@ function App() {
             <div className="flex items-center space-x-3">
               {match && matchStarted && (
                 <>
-                      <button
-                        onClick={generateOBSUrl}
-                        className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
-                      >
-                        <Monitor className="h-4 w-4" />
-                        <span>OBS URL</span>
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            // publish to public_matches so overlay can be viewed without auth
-                            // import dynamically to avoid circular issues
-                            const mod = await import('./firebase');
-                            if (match && match.id) {
-                                // mark match as public so future updates are auto-published
-                                const publicMatch = { ...match, isPublic: true } as MatchState & { isPublic?: boolean };
-                                // update local state and persist
-                                setMatch(publicMatch);
-                                await mod.publishMatchToPublic(publicMatch);
-                                const url = `${window.location.origin}${window.location.pathname}?overlay=1&match=${match.id}`;
-                                navigator.clipboard.writeText(url);
-                                alert('Public overlay published and URL copied!');
-                              }
-                          } catch (e) {
-                            console.error(e);
-                            alert('Failed to publish match publicly');
-                          }
-                        }}
-                        className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        <Monitor className="h-4 w-4" />
-                        <span>Publish Public</span>
-                      </button>
+                  <button
+                    onClick={generateOBSUrl}
+                    className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                  >
+                    <Monitor className="h-4 w-4" />
+                    <span>OBS URL</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        // Publish to public_matches for cross-network OBS access
+                        const mod = await import('./firebase');
+                        if (match && match.id) {
+                          await mod.publishMatchToPublic(match);
+                          
+                          // Also publish overlay settings
+                          const overlaySettings = LocalStorageManager.getOverlaySettings();
+                          await mod.publishOverlaySettingsToPublic(match.id, overlaySettings);
+                          
+                          const url = `${window.location.origin}${window.location.pathname}?overlay=1&match=${match.id}`;
+                          navigator.clipboard.writeText(url);
+                          alert('Match published for cross-network access! OBS URL copied to clipboard.');
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        alert('Failed to publish match for cross-network access');
+                      }
+                    }}
+                    className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    <Monitor className="h-4 w-4" />
+                    <span>Share for OBS</span>
+                  </button>
                   <button
                     onClick={toggleOverlayMode}
                     className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -673,10 +655,14 @@ function App() {
                       <input
                         type="color"
                         className="w-12 h-8 rounded border"
-                        onChange={(e) => {
-                          const settings = LocalStorageManager.getOverlaySettings();
-                          settings.teamAColor = e.target.value;
-                          LocalStorageManager.saveOverlaySettings(settings);
+                        onChange={async (e) => {
+                          if (user) {
+                            const settings = await getOverlaySettingsFromFirebase(user.uid);
+                            settings.teamAColor = e.target.value;
+                            await saveOverlaySettingsToFirebase(user.uid, settings);
+                            const { publishOverlaySettingsToPublic } = await import('./firebase');
+                            await publishOverlaySettingsToPublic(match.id, settings);
+                          }
                         }}
                       />
                       <input
@@ -685,10 +671,14 @@ function App() {
                         max="1"
                         step="0.1"
                         className="flex-1"
-                        onChange={(e) => {
-                          const settings = LocalStorageManager.getOverlaySettings();
-                          settings.teamAOpacity = parseFloat(e.target.value);
-                          LocalStorageManager.saveOverlaySettings(settings);
+                        onChange={async (e) => {
+                          if (user) {
+                            const settings = await getOverlaySettingsFromFirebase(user.uid);
+                            settings.teamAOpacity = parseFloat(e.target.value);
+                            await saveOverlaySettingsToFirebase(user.uid, settings);
+                            const { publishOverlaySettingsToPublic } = await import('./firebase');
+                            await publishOverlaySettingsToPublic(match.id, settings);
+                          }
                         }}
                       />
                     </div>
@@ -702,10 +692,14 @@ function App() {
                       <input
                         type="color"
                         className="w-12 h-8 rounded border"
-                        onChange={(e) => {
-                          const settings = LocalStorageManager.getOverlaySettings();
-                          settings.teamBColor = e.target.value;
-                          LocalStorageManager.saveOverlaySettings(settings);
+                        onChange={async (e) => {
+                          if (user) {
+                            const settings = await getOverlaySettingsFromFirebase(user.uid);
+                            settings.teamBColor = e.target.value;
+                            await saveOverlaySettingsToFirebase(user.uid, settings);
+                            const { publishOverlaySettingsToPublic } = await import('./firebase');
+                            await publishOverlaySettingsToPublic(match.id, settings);
+                          }
                         }}
                       />
                       <input
@@ -714,10 +708,14 @@ function App() {
                         max="1"
                         step="0.1"
                         className="flex-1"
-                        onChange={(e) => {
-                          const settings = LocalStorageManager.getOverlaySettings();
-                          settings.teamBOpacity = parseFloat(e.target.value);
-                          LocalStorageManager.saveOverlaySettings(settings);
+                        onChange={async (e) => {
+                          if (user) {
+                            const settings = await getOverlaySettingsFromFirebase(user.uid);
+                            settings.teamBOpacity = parseFloat(e.target.value);
+                            await saveOverlaySettingsToFirebase(user.uid, settings);
+                            const { publishOverlaySettingsToPublic } = await import('./firebase');
+                            await publishOverlaySettingsToPublic(match.id, settings);
+                          }
                         }}
                       />
                     </div>
@@ -806,12 +804,14 @@ function App() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">
-                            {m.teamA.score}/{m.teamA.wickets}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            ({m.innings1.overNumber}.{m.innings1.legalBallsInCurrentOver})
-                          </div>
+                          <>
+                            <div className="text-lg font-bold text-gray-900">
+                              {m.teamA.score}/{m.teamA.wickets}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              vs {m.teamB.score}/{m.teamB.wickets}
+                            </div>
+                          </>
                         </div>
                       </div>
                       <div className="text-xs text-gray-400 font-mono">

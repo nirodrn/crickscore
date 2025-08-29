@@ -451,9 +451,14 @@ export const StylePanel: React.FC<StylePanelProps> = ({ onClose, matchId }) => {
             <div className="bg-gray-800 rounded-lg overflow-hidden" style={{ height: '400px' }}>
               {matchId && (
                 <iframe
-                  src={`${window.location.origin}${window.location.pathname}?overlay=1&match=${matchId}&preview=1`}
+                  src={`${window.location.origin}${window.location.pathname}?overlay=1&match=${matchId}`}
                   className="w-full h-full border-0"
-                  style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%', height: '200%' }}
+                  style={{ 
+                    transform: 'scale(0.4)', 
+                    transformOrigin: 'top left', 
+                    width: '250%', 
+                    height: '250%'
+                  }}
                 />
               )}
             </div>

@@ -1,7 +1,8 @@
 // Overlay Settings (Firebase Realtime Database)
 export async function saveOverlaySettingsToFirebase(userId: string, settings: any) {
   const settingsRef = ref(database, `users/${userId}/overlaySettings`);
-  await set(settingsRef, settings);
+  const cleanedSettings = removeUndefined(settings);
+  await set(settingsRef, cleanedSettings);
 }
 
 export async function getOverlaySettingsFromFirebase(userId: string): Promise<any> {
@@ -14,6 +15,7 @@ export async function getOverlaySettingsFromFirebase(userId: string): Promise<an
   return {
     showOverlay: true,
     showPlayerStats: true,
+    showSidePanels: true,
     showRunRateChart: true,
     showFullscreenPlayerStats: false,
     showFullscreenRunRate: false,
@@ -459,6 +461,7 @@ export async function getOverlaySettingsForMatch(matchId: string): Promise<any> 
   return {
     showOverlay: true,
     showPlayerStats: true,
+    showSidePanels: false,
     showRunRateChart: true,
     showFullscreenPlayerStats: false,
     showFullscreenRunRate: false,
@@ -546,6 +549,7 @@ export function subscribeToPublicOverlaySettings(matchId: string, callback: (set
   
   const unsubscribe = onValue(settingsRef, (snapshot) => {
     const settings = snapshot.exists() ? snapshot.val() : null;
+    console.debug('[firebase] overlay settings update', { matchId, settings });
     callback(settings);
   }, (error) => {
     console.error('Failed to subscribe to public overlay settings:', error);
@@ -554,7 +558,6 @@ export function subscribeToPublicOverlaySettings(matchId: string, callback: (set
   
   return () => {
     off(settingsRef);
-    if (unsubscribe) unsubscribe();
   };
 }
 
@@ -574,6 +577,7 @@ export async function getPublicOverlaySettings(matchId: string): Promise<any> {
   return {
     showOverlay: true,
     showPlayerStats: true,
+    showSidePanels: true,
     showRunRateChart: true,
     primaryColor: '#1e3a8a',
     secondaryColor: '#1d4ed8',

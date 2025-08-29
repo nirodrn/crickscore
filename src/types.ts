@@ -117,6 +117,8 @@ export interface InningsState {
   intervalType?: 'drinks' | 'innings' | 'lunch' | 'tea' | 'custom';
   intervalMessage?: string;
   target?: number;
+  powerplayActive?: boolean;
+  powerplayOversRemaining?: number;
   events: BallEvent[];
 }
 

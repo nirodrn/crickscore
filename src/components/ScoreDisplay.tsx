@@ -22,6 +22,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
   const [overlaySettings, setOverlaySettings] = useState<any>(null);
   const [showFullscreenPanel, setShowFullscreenPanel] = useState<string | null>(null);
   const [panelAnimation, setPanelAnimation] = useState('');
+  const [realtimeSettings, setRealtimeSettings] = useState<any>(null);
 
   const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
   const battingTeam = innings.battingTeam === 'A' ? match.teamA : match.teamB;
@@ -33,31 +34,37 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
   // Load overlay settings with real-time updates
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        // Try to get settings from Firebase for this specific match
-        const { getOverlaySettingsForMatch } = await import('../firebase');
-        const firebaseSettings = await getOverlaySettingsForMatch(match.id);
-        
-        // Merge with local settings
-        const localSettings = LocalStorageManager.getOverlaySettings();
-        const mergedSettings = { ...localSettings, ...firebaseSettings };
-        
-        setOverlaySettings(mergedSettings);
-        LocalStorageManager.saveOverlaySettings(mergedSettings);
-      } catch (error) {
-        console.error('Failed to load overlay settings:', error);
-        // Fallback to local settings
-        const settings = LocalStorageManager.getOverlaySettings();
-        setOverlaySettings(settings);
-      }
+    if (!overlayMode) return;
+
+    const setupOverlaySettings = async () => {
+      const { getOverlaySettingsForMatch, subscribeToPublicOverlaySettings } = await import('../firebase');
+      
+      // Initial load from Firebase
+      const firebaseSettings = await getOverlaySettingsForMatch(match.id);
+      setOverlaySettings(firebaseSettings);
+      setRealtimeSettings(firebaseSettings);
+
+      // Set up real-time subscription
+      const unsubscribe = subscribeToPublicOverlaySettings(match.id, (settings) => {
+        if (settings) {
+          setOverlaySettings(settings);
+          setRealtimeSettings(settings);
+        }
+      });
+      
+      return unsubscribe;
     };
 
-    loadSettings();
-
-    // Set up real-time listener for overlay settings updates
-    const interval = setInterval(loadSettings, 2000);
-    return () => clearInterval(interval);
+    let unsubscribe: (() => void) | null = null;
+    setupOverlaySettings().then(unsub => {
+      unsubscribe = unsub;
+    });
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [match.id]);
 
   // Panel management with enhanced animations
@@ -221,7 +228,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
               className="international-cricket-footer"
               style={{
                 background: overlaySettings?.styleSettings?.footerGradient || 
-                           `linear-gradient(135deg, ${overlaySettings?.primaryColor || '#1e3a8a'}95, ${overlaySettings?.secondaryColor || '#1d4ed8'}85)`,
+                           `linear-gradient(135deg, ${overlaySettings?.primaryColor || '#4c1d95'} 0%, ${overlaySettings?.secondaryColor || '#7c3aed'} 50%, ${overlaySettings?.accentColor || '#a855f7'} 100%)`,
                 color: overlaySettings?.styleSettings?.footerTextColor || overlaySettings?.textColor || '#ffffff'
               }}
             >
@@ -234,169 +241,88 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                       {innings.intervalMessage || `${(innings.intervalType || 'interval').charAt(0).toUpperCase() + (innings.intervalType || 'interval').slice(1)} Break`}
                     </div>
                   </div>
-                  <div className="interval-subtitle">Match will resume shortly</div>
                 </div>
               )}
 
-              {/* Main Footer Layout - International Standard */}
+              {/* Main Footer Layout - Modern Broadcast Style */}
               {!innings.isInterval && (
-                <div className="footer-main-grid">
-                  {/* Left Section - Batting Team */}
-                  <div className="batting-section">
-                    <div 
-                      className="team-name-container"
-                      style={{ 
-                        borderLeft: `4px solid ${overlaySettings?.teamAColor || '#3b82f6'}`
-                      }}
-                    >
-                      <div className="team-label">BATTING</div>
-                      <div className="team-name" style={{ color: overlaySettings?.teamAColor || '#3b82f6' }}>
-                        {battingTeam.name}
+                <div className="cricket-footer-content">
+                  {/* Left Team Flag */}
+                  <div className="team-flag-section">
+                    {battingTeam.logoUrl ? (
+                      <img src={battingTeam.logoUrl} alt={battingTeam.name} className="team-flag" />
+                    ) : (
+                      <div className="team-flag bg-blue-600 flex items-center justify-center text-xs font-bold">
+                        {battingTeam.name.substring(0, 3).toUpperCase()}
                       </div>
-                    </div>
-                    
-                    <div className="players-container">
-                      <div className="striker-container">
-                        <div className="striker-indicator" style={{ backgroundColor: overlaySettings?.accentColor || '#10b981' }}></div>
-                        <div className="player-name">{striker?.name || 'N/A'}</div>
-                        <div className="player-stats">
-                          {striker?.battingStats?.runs || 0}({striker?.battingStats?.balls || 0})
-                        </div>
-                      </div>
-                      
-                      <div className="non-striker-container">
-                        <div className="player-name">{nonStriker?.name || 'N/A'}</div>
-                        <div className="player-stats">
-                          {nonStriker?.battingStats?.runs || 0}({nonStriker?.battingStats?.balls || 0})
-                        </div>
-                      </div>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="run-rate-container">
-                      <div className="run-rate-label">RUN RATE</div>
-                      <div className="run-rate-value" style={{ color: overlaySettings?.accentColor || '#10b981' }}>
-                        {calculateRunRate().toFixed(2)}
-                      </div>
+                  {/* Players Section */}
+                  <div className="players-section">
+                    <div className="player-row">
+                      <div className="striker-indicator"></div>
+                      <span className="player-name">{striker?.name || 'N/A'}</span>
+                      <span className="player-score">{striker?.battingStats?.runs || 0}</span>
+                    </div>
+                    <div className="player-row">
+                      <span className="player-name">{nonStriker?.name || 'N/A'}</span>
+                      <span className="player-score">{nonStriker?.battingStats?.runs || 0}</span>
                     </div>
                   </div>
 
-                  {/* Center Section - Score & Overs */}
-                  <div className="center-section">
-                    {/* Target Display for Second Innings */}
-                    {match.currentInnings === 2 && innings.target && (
-                      <div className="target-display">
-                        <div className="target-label">TARGET</div>
-                        <div className="target-value">{innings.target}</div>
+                  {/* Central Match Info */}
+                  <div className="match-info-section">
+                    <div className="match-header">
+                      <div className="team-vs-display">
+                        {battingTeam.name.substring(0, 2).toUpperCase()} v {bowlingTeam.name.substring(0, 3).toUpperCase()}
                       </div>
-                    )}
-
-                    <div className="score-display">
-                      <div className="runs-wickets">
-                        <span className="runs" style={{ color: overlaySettings?.accentColor || '#10b981' }}>
-                          {battingTeam.score}
-                        </span>
-                        <span className="separator">/</span>
-                        <span className="wickets" style={{ color: overlaySettings?.teamBColor || '#ef4444' }}>
-                          {battingTeam.wickets}
-                        </span>
+                      <div className="match-score">
+                        {battingTeam.score}-{battingTeam.wickets}
+                      </div>
+                      <div className="innings-indicator">
+                        {innings.powerplayActive ? `P${innings.powerplayOversRemaining || 1}` : `P${match.currentInnings}`}
                       </div>
                       <div className="overs-display">
-                        <div className="overs-label">OVERS</div>
-                        <div className="overs-value">
-                        {formatOvers(innings.overNumber, innings.legalBallsInCurrentOver)}
-                        {innings.maxOvers && ` / ${innings.maxOvers}`}
-                        </div>
+                        {formatOvers(innings.overNumber, innings.legalBallsInCurrentOver)} overs
                       </div>
                     </div>
-
-                    {/* Target Needed Display */}
-                    {match.currentInnings === 2 && innings.target && battingTeam.score < innings.target && (
-                      <div className="target-needed">
-                        {Math.max(0, innings.target - battingTeam.score)} TO WIN OFF {((innings.maxOvers || 20) * 6) - (innings.overNumber * 6 + innings.legalBallsInCurrentOver)} BALLS
-                      </div>
-                    )}
-
-                    {/* Current Over Balls - Enhanced Layout */}
-                    <div className="current-over-container">
-                      <div className="over-balls-wrapper">
-                        {currentOverBalls.slice(-10).map((ball, index) => (
-                          <div
-                            key={index}
-                            className={`ball-indicator-international ${ball.type} ${ball.isFreeHit ? 'free-hit-glow' : ''}`}
-                            style={{
-                              width: `${overlaySettings?.styleSettings?.ballIndicatorSize || 28}px`,
-                              height: `${overlaySettings?.styleSettings?.ballIndicatorSize || 28}px`
-                            }}
-                          >
-                            {ball.value}
-                          </div>
-                        ))}
-                        
-                        {/* Fill remaining balls for visual consistency */}
-                        {currentOverBalls.length < 6 && Array.from({ 
-                          length: 6 - (currentOverBalls.length % 6)
-                        }, (_, index) => (
-                          <div 
-                            key={`empty-${index}`} 
-                            className="ball-indicator-international empty"
-                            style={{
-                              width: `${overlaySettings?.styleSettings?.ballIndicatorSize || 28}px`,
-                              height: `${overlaySettings?.styleSettings?.ballIndicatorSize || 28}px`
-                            }}
-                          >
-                            •
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Tournament Name */}
-                    <div 
-                      className="tournament-name"
-                      style={{ 
-                        background: `rgba(0, 0, 0, 0.3)`,
-                        color: overlaySettings?.styleSettings?.footerTextColor || '#ffffff'
-                      }}
-                    >
+                    <div className="tournament-info">
                       {match.tournamentName || 'Cricket Match'}
                     </div>
                   </div>
 
-                  {/* Right Section - Bowling Team */}
-                  <div className="bowling-section">
-                    <div 
-                      className="team-name-container"
-                      style={{ 
-                        borderRight: `4px solid ${overlaySettings?.teamBColor || '#ef4444'}`
-                      }}
-                    >
-                      <div className="team-label">BOWLING</div>
-                      <div className="team-name" style={{ color: overlaySettings?.teamBColor || '#ef4444' }}>
-                        {bowlingTeam.name}
-                      </div>
-                    </div>
-
-                    <div className="bowler-container">
+                  {/* Bowler Section */}
+                  <div className="bowler-section">
+                    <div className="bowler-info">
                       <div className="bowler-name">{bowler?.name || 'N/A'}</div>
                       <div className="bowler-stats">
                         {Math.floor((bowler?.bowlingStats?.balls || 0) / 6)}.{(bowler?.bowlingStats?.balls || 0) % 6} - {bowler?.bowlingStats?.runs || 0}/{bowler?.bowlingStats?.wickets || 0}
                       </div>
                     </div>
-
-                    <div className="over-display">
-                      <div className="over-label">OVER</div>
-                      <div className="over-value" style={{ color: overlaySettings?.accentColor || '#3b82f6' }}>
-                        {innings.overNumber + 1}
-                        {innings.maxOvers && ` / ${innings.maxOvers}`}
-                      </div>
-                    </div>
-
-                    {requiredRunRate !== null && (
-                      <div className="required-rate-container">
-                        <div className="required-rate-label">REQUIRED RR</div>
-                        <div className="required-rate-value" style={{ color: '#ef4444' }}>
-                          {requiredRunRate.toFixed(2)}
+                    <div className="current-over-balls">
+                      {currentOverBalls.slice(-6).map((ball, index) => (
+                        <div
+                          key={index}
+                          className={`ball-dot ${ball.type}`}
+                        >
+                          {ball.value === '•' ? '' : ball.value}
                         </div>
+                      ))}
+                      {/* Fill remaining balls */}
+                      {Array.from({ length: Math.max(0, 6 - currentOverBalls.length) }, (_, index) => (
+                        <div key={`empty-${index}`} className="ball-dot empty"></div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Team Flag */}
+                  <div className="team-flag-section">
+                    {bowlingTeam.logoUrl ? (
+                      <img src={bowlingTeam.logoUrl} alt={bowlingTeam.name} className="team-flag" />
+                    ) : (
+                      <div className="team-flag bg-red-600 flex items-center justify-center text-xs font-bold">
+                        {bowlingTeam.name.substring(0, 3).toUpperCase()}
                       </div>
                     )}
                   </div>
@@ -407,7 +333,6 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
               {innings.freeHit && !innings.isInterval && (
                 <div 
                   className="free-hit-indicator"
-                  style={{ backgroundColor: overlaySettings?.accentColor || '#fbbf24' }}
                 >
                   FREE HIT
                 </div>
@@ -417,7 +342,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
         )}
 
         {/* Side Panels */}
-        {overlaySettings?.showPlayerStats && !showFullscreenPanel && (
+        {realtimeSettings?.showPlayerStats && realtimeSettings?.showSidePanels && !showFullscreenPanel && (
           <div className="fixed top-4 right-4 w-80">
             <div className="cricket-panel bg-black/30 backdrop-blur-md rounded-lg p-4 border border-white/20">
               <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
@@ -454,7 +379,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
         )}
 
         {/* Run Rate Chart */}
-        {overlaySettings?.showRunRateChart && !showFullscreenPanel && (
+        {realtimeSettings?.showRunRateChart && realtimeSettings?.showSidePanels && !showFullscreenPanel && (
           <div className="fixed top-4 left-4 w-80">
             <div className="cricket-panel bg-black/30 backdrop-blur-md rounded-lg p-4 border border-white/20">
               <h3 className="text-lg font-semibold mb-3">Run Rate Trend</h3>

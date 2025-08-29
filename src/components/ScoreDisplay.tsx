@@ -36,29 +36,52 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
   useEffect(() => {
     if (!overlayMode) return;
 
+    let unsubscribe: (() => void) | null = null;
+    
     const setupOverlaySettings = async () => {
-      const { getOverlaySettingsForMatch, subscribeToPublicOverlaySettings } = await import('../firebase');
-      
-      // Initial load from Firebase
-      const firebaseSettings = await getOverlaySettingsForMatch(match.id);
-      setOverlaySettings(firebaseSettings);
-      setRealtimeSettings(firebaseSettings);
+      try {
+        const { getOverlaySettingsForMatch, subscribeToPublicOverlaySettings } = await import('../firebase');
+        
+        // Initial load
+        const initialSettings = await getOverlaySettingsForMatch(match.id);
+        console.log('[ScoreDisplay] Initial overlay settings loaded:', initialSettings);
+        setOverlaySettings(initialSettings);
+        setRealtimeSettings(initialSettings);
 
-      // Set up real-time subscription
-      const unsubscribe = subscribeToPublicOverlaySettings(match.id, (settings) => {
-        if (settings) {
-          setOverlaySettings(settings);
-          setRealtimeSettings(settings);
-        }
-      });
-      
-      return unsubscribe;
+        // Set up real-time subscription
+        unsubscribe = subscribeToPublicOverlaySettings(match.id, (settings) => {
+          console.log('[ScoreDisplay] Real-time settings update:', settings);
+          if (settings) {
+            setOverlaySettings(settings);
+            setRealtimeSettings(settings);
+          }
+        });
+      } catch (error) {
+        console.error('[ScoreDisplay] Failed to setup overlay settings:', error);
+        // Fallback to default settings
+        const defaultSettings = {
+          showOverlay: true,
+          showPlayerStats: true,
+          showSidePanels: true,
+          showRunRateChart: true,
+          showFullscreenPlayerStats: true,
+          showFullscreenRunRate: true,
+          showFullscreenMatchSummary: true,
+          showComparisonChart: true,
+          fullscreenDuration: 10,
+          primaryColor: '#1e3a8a',
+          secondaryColor: '#1d4ed8',
+          accentColor: '#3b82f6',
+          textColor: '#ffffff',
+          teamAColor: '#3b82f6',
+          teamBColor: '#ef4444'
+        };
+        setOverlaySettings(defaultSettings);
+        setRealtimeSettings(defaultSettings);
+      }
     };
 
-    let unsubscribe: (() => void) | null = null;
-    setupOverlaySettings().then(unsub => {
-      unsubscribe = unsub;
-    });
+    setupOverlaySettings();
     
     return () => {
       if (unsubscribe) {
@@ -69,35 +92,52 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
   // Panel management with enhanced animations
   useEffect(() => {
-    if (!overlaySettings || !overlayMode) return;
+    if (!realtimeSettings || !overlayMode) return;
 
     const checkForPanelTriggers = () => {
       const now = Date.now();
-      const threshold = 2000; // 2 seconds
+      const threshold = 5000; // 5 seconds to ensure triggers are caught
+
+      console.log('[ScoreDisplay] Checking panel triggers:', {
+        now,
+        triggerPlayerStats: realtimeSettings.triggerPlayerStats,
+        triggerRunRate: realtimeSettings.triggerRunRate,
+        triggerMatchSummary: realtimeSettings.triggerMatchSummary,
+        triggerComparison: realtimeSettings.triggerComparison,
+        hideAllPanels: realtimeSettings.hideAllPanels
+      });
 
       // Check for manual triggers
-      if (overlaySettings.triggerPlayerStats && now - overlaySettings.triggerPlayerStats < threshold) {
+      if (realtimeSettings.triggerPlayerStats && now - realtimeSettings.triggerPlayerStats < threshold) {
+        console.log('[ScoreDisplay] Triggering playerStats panel');
         showPanelWithAnimation('playerStats');
-      } else if (overlaySettings.triggerRunRate && now - overlaySettings.triggerRunRate < threshold) {
+      } else if (realtimeSettings.triggerRunRate && now - realtimeSettings.triggerRunRate < threshold) {
+        console.log('[ScoreDisplay] Triggering runRate panel');
         showPanelWithAnimation('runRate');
-      } else if (overlaySettings.triggerMatchSummary && now - overlaySettings.triggerMatchSummary < threshold) {
+      } else if (realtimeSettings.triggerMatchSummary && now - realtimeSettings.triggerMatchSummary < threshold) {
+        console.log('[ScoreDisplay] Triggering matchSummary panel');
         showPanelWithAnimation('matchSummary');
-      } else if (overlaySettings.triggerComparison && now - overlaySettings.triggerComparison < threshold) {
+      } else if (realtimeSettings.triggerComparison && now - realtimeSettings.triggerComparison < threshold) {
+        console.log('[ScoreDisplay] Triggering comparison panel');
         showPanelWithAnimation('comparison');
-      } else if (overlaySettings.triggerBatsmanSummary && now - overlaySettings.triggerBatsmanSummary < threshold) {
+      } else if (realtimeSettings.triggerBatsmanSummary && now - realtimeSettings.triggerBatsmanSummary < threshold) {
+        console.log('[ScoreDisplay] Triggering batsmanSummary panel');
         showPanelWithAnimation('batsmanSummary');
-      } else if (overlaySettings.triggerBowlerSummary && now - overlaySettings.triggerBowlerSummary < threshold) {
+      } else if (realtimeSettings.triggerBowlerSummary && now - realtimeSettings.triggerBowlerSummary < threshold) {
+        console.log('[ScoreDisplay] Triggering bowlerSummary panel');
         showPanelWithAnimation('bowlerSummary');
-      } else if (overlaySettings.triggerWinner && now - overlaySettings.triggerWinner < threshold) {
+      } else if (realtimeSettings.triggerWinner && now - realtimeSettings.triggerWinner < threshold) {
+        console.log('[ScoreDisplay] Triggering winner panel');
         showPanelWithAnimation('winner');
-      } else if (overlaySettings.hideAllPanels && now - overlaySettings.hideAllPanels < threshold) {
+      } else if (realtimeSettings.hideAllPanels && now - realtimeSettings.hideAllPanels < threshold) {
+        console.log('[ScoreDisplay] Hiding all panels');
         hidePanelWithAnimation();
       }
     };
 
-    const interval = setInterval(checkForPanelTriggers, 500);
+    const interval = setInterval(checkForPanelTriggers, 1000);
     return () => clearInterval(interval);
-  }, [overlaySettings, overlayMode]);
+  }, [realtimeSettings, overlayMode]);
 
   // Auto-cycle panels
   useEffect(() => {
@@ -117,20 +157,25 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
   }, [overlaySettings, overlayMode]);
 
   const showPanelWithAnimation = (panelType: string) => {
+    console.log(`[ScoreDisplay] Showing panel: ${panelType}`);
     setPanelAnimation('animate-fadeIn');
     setShowFullscreenPanel(panelType);
     
-    const duration = (overlaySettings?.fullscreenDuration || 10) * 1000;
+    const duration = (realtimeSettings?.fullscreenDuration || 10) * 1000;
+    console.log(`[ScoreDisplay] Panel will hide after ${duration}ms`);
+    
     setTimeout(() => {
       hidePanelWithAnimation();
     }, duration);
   };
 
   const hidePanelWithAnimation = () => {
+    console.log('[ScoreDisplay] Hiding panel with animation');
     setPanelAnimation('animate-fadeOut');
     setTimeout(() => {
       setShowFullscreenPanel(null);
       setPanelAnimation('');
+      console.log('[ScoreDisplay] Panel hidden');
     }, 300);
   };
 
@@ -196,16 +241,16 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
         )}
 
         {/* Fullscreen Panels */}
-        {showFullscreenPanel === 'playerStats' && overlaySettings?.showFullscreenPlayerStats && (
+        {showFullscreenPanel === 'playerStats' && (
           <PlayerStatsPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
-        {showFullscreenPanel === 'runRate' && overlaySettings?.showFullscreenRunRate && (
+        {showFullscreenPanel === 'runRate' && (
           <RunRateAnalysisPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
-        {showFullscreenPanel === 'matchSummary' && overlaySettings?.showFullscreenMatchSummary && (
+        {showFullscreenPanel === 'matchSummary' && (
           <MatchSummaryPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
-        {showFullscreenPanel === 'comparison' && overlaySettings?.showComparisonChart && (
+        {showFullscreenPanel === 'comparison' && (
           <TeamComparisonPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
         {showFullscreenPanel === 'wicketFall' && (

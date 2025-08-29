@@ -22,18 +22,28 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
   // Update settings and save to Firebase
   const updateSetting = async (key: string, value: any) => {
     const user = firebaseService.getCurrentUser();
-    if (!user || !overlaySettings) return;
+    if (!user || !overlaySettings) {
+      console.warn('[OverlayControlPanel] Cannot update setting - no user or settings');
+      return;
+    }
+    
+    console.log(`[OverlayControlPanel] Updating setting: ${key} = ${value}`);
     const newSettings = { ...overlaySettings, [key]: value };
     setOverlaySettings(newSettings);
     
-    // Save to Firebase
-    await saveOverlaySettingsToFirebase(user.uid, newSettings);
-    
-    // Publish to public path for cross-network access
-    const { publishOverlaySettingsToPublic } = await import('../firebase');
-    await publishOverlaySettingsToPublic(match.id, newSettings);
-    
-    onUpdateOverlaySettings(newSettings);
+    try {
+      // Save to Firebase
+      await saveOverlaySettingsToFirebase(user.uid, newSettings);
+      
+      // Publish to public path for cross-network access
+      const { publishOverlaySettingsToPublic } = await import('../firebase');
+      await publishOverlaySettingsToPublic(match.id, newSettings);
+      
+      console.log(`[OverlayControlPanel] Setting ${key} updated successfully`);
+      onUpdateOverlaySettings(newSettings);
+    } catch (error) {
+      console.error(`[OverlayControlPanel] Failed to update setting ${key}:`, error);
+    }
   };
 
   // Load overlay settings from Firebase on mount
@@ -41,25 +51,47 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
     const fetchSettings = async () => {
       const user = firebaseService.getCurrentUser();
       if (!user) {
-        // For unauthenticated users, get public settings
-        const { getOverlaySettingsForMatch } = await import('../firebase');
-        const settings = await getOverlaySettingsForMatch(match.id);
-        setOverlaySettings(settings);
+        console.log('[OverlayControlPanel] No user, loading default settings');
+        const defaultSettings = {
+          showOverlay: true,
+          showPlayerStats: true,
+          showSidePanels: true,
+          showRunRateChart: true,
+          showFullscreenPlayerStats: true,
+          showFullscreenRunRate: true,
+          showFullscreenMatchSummary: true,
+          showComparisonChart: true,
+          fullscreenDuration: 10,
+          primaryColor: '#1e3a8a',
+          secondaryColor: '#1d4ed8',
+          accentColor: '#3b82f6',
+          textColor: '#ffffff',
+          teamAColor: '#3b82f6',
+          teamBColor: '#ef4444'
+        };
+        setOverlaySettings(defaultSettings);
         return;
       }
       
-      const settings = await getOverlaySettingsFromFirebase(user.uid);
-      setOverlaySettings(settings);
-      
-      // Also get powerplay status from match
-      const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
-      setPowerplaySettings({
-        active: innings.powerplayActive || false,
-        oversRemaining: innings.powerplayOversRemaining || 6
-      });
+      try {
+        console.log('[OverlayControlPanel] Loading settings for user:', user.uid);
+        const settings = await getOverlaySettingsFromFirebase(user.uid);
+        console.log('[OverlayControlPanel] Settings loaded:', settings);
+        setOverlaySettings(settings);
+        
+        // Also get powerplay status from match
+        const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
+        setPowerplaySettings({
+          active: innings.powerplayActive || false,
+          oversRemaining: innings.powerplayOversRemaining || 6
+        });
+      } catch (error) {
+        console.error('[OverlayControlPanel] Failed to load settings:', error);
+      }
     };
+    
     fetchSettings();
-  }, []);
+  }, [match.id]);
 
   const generateOBSUrl = () => {
     const obsUrl = URLHelper.generateOverlayURL(match?.id || '');
@@ -74,37 +106,67 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
   };
 
   const triggerPanelWithAnimation = (panelType: string) => {
-    // Add animation class to button
-    const panelButton = document.querySelector(`[data-panel="${panelType}"]`);
-    if (panelButton) {
-      panelButton.classList.add('animate-pulse', 'scale-110');
-      setTimeout(() => {
-        panelButton.classList.remove('animate-pulse', 'scale-110');
-      }, 1000);
-    }
+    const triggerKey = `trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`;
+    const timestamp = Date.now();
     
-    updateSetting(`trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`, Date.now());
+    console.log(`[OverlayControlPanel] Triggering panel: ${panelType} with key: ${triggerKey}`);
     
-    // Also publish the trigger to public overlay settings for real-time updates
-    const publishTrigger = async () => {
+    // Update local settings immediately
+    const newSettings = { ...overlaySettings, [triggerKey]: timestamp };
+    setOverlaySettings(newSettings);
+    
+    // Save to Firebase and publish to public
+    const saveAndPublish = async () => {
       try {
-        const { publishOverlaySettingsToPublic } = await import('../firebase');
         const user = firebaseService.getCurrentUser();
         if (!user) return;
         
-        const currentSettings = await getOverlaySettingsFromFirebase(user.uid);
-        const updatedSettings = {
-          ...currentSettings,
-          [`trigger${panelType.charAt(0).toUpperCase() + panelType.slice(1)}`]: Date.now()
-        };
-        await publishOverlaySettingsToPublic(match.id, updatedSettings);
-        console.debug('[overlay] published trigger', { panelType, matchId: match.id });
+        await saveOverlaySettingsToFirebase(user.uid, newSettings);
+        
+        const { publishOverlaySettingsToPublic } = await import('../firebase');
+        await publishOverlaySettingsToPublic(match.id, newSettings);
+        
+        console.log(`[overlay] Panel ${panelType} triggered at ${timestamp}`);
+        
+        // Visual feedback
+        const button = document.querySelector(`[data-panel="${panelType}"]`);
+        if (button) {
+          button.classList.add('animate-pulse', 'bg-opacity-80');
+          setTimeout(() => {
+            button.classList.remove('animate-pulse', 'bg-opacity-80');
+          }, 2000);
+        }
       } catch (error) {
-        console.error('Failed to publish trigger to public settings:', error);
+        console.error('Failed to trigger panel:', error);
       }
     };
     
-    publishTrigger();
+    saveAndPublish();
+  };
+
+  const hideAllPanels = () => {
+    console.log('[OverlayControlPanel] Hiding all panels');
+    const timestamp = Date.now();
+    const newSettings = { ...overlaySettings, hideAllPanels: timestamp };
+    setOverlaySettings(newSettings);
+    
+    const saveAndPublish = async () => {
+      try {
+        const user = firebaseService.getCurrentUser();
+        if (!user) return;
+        
+        await saveOverlaySettingsToFirebase(user.uid, newSettings);
+        
+        const { publishOverlaySettingsToPublic } = await import('../firebase');
+        await publishOverlaySettingsToPublic(match.id, newSettings);
+        
+        console.log(`[overlay] All panels hidden at ${timestamp}`);
+      } catch (error) {
+        console.error('Failed to hide panels:', error);
+      }
+    };
+    
+    saveAndPublish();
   };
 
   if (!overlaySettings) {
@@ -433,81 +495,85 @@ export const OverlayControlPanel: React.FC<OverlayControlPanelProps> = ({ match,
             <button
               data-panel="playerStats"
               onClick={() => triggerPanelWithAnimation('playerStats')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25"
             >
               <Users className="h-4 w-4" />
               <span>Player Stats</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="runRate"
               onClick={() => triggerPanelWithAnimation('runRate')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/25"
             >
               <BarChart3 className="h-4 w-4" />
               <span>Run Rate</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="matchSummary"
               onClick={() => triggerPanelWithAnimation('matchSummary')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/25"
             >
               <Award className="h-4 w-4" />
               <span>Summary</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="comparison"
               onClick={() => triggerPanelWithAnimation('comparison')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-indigo-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-indigo-500/25"
             >
               <TrendingUp className="h-4 w-4" />
               <span>Comparison</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="batsmanSummary"
               onClick={() => triggerPanelWithAnimation('batsmanSummary')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-lg hover:from-orange-700 hover:to-orange-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-lg hover:from-orange-700 hover:to-orange-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/25"
             >
               <Users className="h-4 w-4" />
               <span>Batsmen</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="bowlerSummary"
               onClick={() => triggerPanelWithAnimation('bowlerSummary')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/25"
             >
               <Zap className="h-4 w-4" />
               <span>Bowlers</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
 
             <button
               data-panel="winner"
               onClick={() => triggerPanelWithAnimation('winner')}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-lg hover:from-yellow-700 hover:to-yellow-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/25 animate-glow"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-lg hover:from-yellow-700 hover:to-yellow-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/25"
             >
               <Award className="h-4 w-4" />
               <span>Winner</span>
-              <Zap className="h-3 w-3 opacity-75" />
             </button>
           </div>
           
           <button
-            onClick={() => updateSetting('hideAllPanels', Date.now())}
-            className="w-full mt-3 flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/25"
+            onClick={hideAllPanels}
+            className="w-full mt-3 flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 text-sm font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-gray-500/25"
           >
             <EyeOff className="h-4 w-4" />
             <span>Hide All Panels</span>
           </button>
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="text-sm text-blue-800">
+              <strong>Debug Info:</strong>
+              <div className="mt-1 text-xs font-mono">
+                Match ID: {match.id}<br/>
+                Settings Loaded: {overlaySettings ? 'Yes' : 'No'}<br/>
+                Last Update: {overlaySettings?.updatedAt ? new Date(overlaySettings.updatedAt).toLocaleTimeString() : 'Never'}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* OBS URL */}

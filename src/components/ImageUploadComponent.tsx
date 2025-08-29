@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ImageUploadService } from '../utils/imageUpload';
-import { Upload, Link, X, Check, AlertCircle } from 'lucide-react';
+import { PexelsService } from '../utils/pexelsService';
+import { Upload, Link, X, Check, AlertCircle, Search, Image } from 'lucide-react';
 
 interface ImageUploadComponentProps {
   onImageUploaded: (url: string) => void;
@@ -18,6 +19,10 @@ export const ImageUploadComponent: React.FC<ImageUploadComponentProps> = ({
   const [uploading, setUploading] = useState(false);
   const [manualUrl, setManualUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showPexelsSearch, setShowPexelsSearch] = useState(false);
+  const [pexelsQuery, setPexelsQuery] = useState('');
+  const [pexelsResults, setPexelsResults] = useState<any[]>([]);
+  const [searchingPexels, setSearchingPexels] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,8 +71,36 @@ export const ImageUploadComponent: React.FC<ImageUploadComponentProps> = ({
   const clearImage = () => {
     onImageUploaded('');
     setManualUrl('');
+    setPexelsQuery('');
+    setPexelsResults([]);
     setShowUrlInput(false);
+    setShowPexelsSearch(false);
     setError('');
+  };
+
+  const searchPexels = async () => {
+    if (!pexelsQuery.trim()) return;
+    
+    setSearchingPexels(true);
+    setError('');
+    
+    try {
+      const photos = await PexelsService.searchPhotos(pexelsQuery, 12);
+      setPexelsResults(photos);
+    } catch (error) {
+      setError('Failed to search Pexels. Please try again.');
+      console.error('Pexels search error:', error);
+    } finally {
+      setSearchingPexels(false);
+    }
+  };
+
+  const selectPexelsImage = (photo: any) => {
+    const imageUrl = PexelsService.getOptimizedImageUrl(photo, 'medium');
+    onImageUploaded(imageUrl);
+    setShowPexelsSearch(false);
+    setPexelsQuery('');
+    setPexelsResults([]);
   };
 
   return (
@@ -119,6 +152,14 @@ export const ImageUploadComponent: React.FC<ImageUploadComponentProps> = ({
           <Link className="h-4 w-4" />
           <span>URL</span>
         </button>
+
+        <button
+          onClick={() => setShowPexelsSearch(!showPexelsSearch)}
+          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200"
+        >
+          <Search className="h-4 w-4" />
+          <span>Pexels</span>
+        </button>
       </div>
 
       {/* Manual URL Input */}
@@ -141,6 +182,59 @@ export const ImageUploadComponent: React.FC<ImageUploadComponentProps> = ({
               <span>Add</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Pexels Search */}
+      {showPexelsSearch && (
+        <div className="space-y-4">
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={pexelsQuery}
+              onChange={(e) => setPexelsQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && searchPexels()}
+              placeholder="Search for images (e.g., cricket, sports, team)"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <button
+              onClick={searchPexels}
+              disabled={searchingPexels || !pexelsQuery.trim()}
+              className="flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <Search className="h-4 w-4" />
+              <span>{searchingPexels ? 'Searching...' : 'Search'}</span>
+            </button>
+          </div>
+          
+          {/* Pexels Results */}
+          {pexelsResults.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+              {pexelsResults.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => selectPexelsImage(photo)}
+                  className="relative group overflow-hidden rounded-lg hover:scale-105 transition-transform duration-200"
+                >
+                  <img
+                    src={PexelsService.getOptimizedImageUrl(photo, 'small')}
+                    alt={photo.alt || 'Pexels photo'}
+                    className="w-full h-20 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                    <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {searchingPexels && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+              <span className="ml-2 text-gray-600">Searching Pexels...</span>
+            </div>
+          )}
         </div>
       )}
 

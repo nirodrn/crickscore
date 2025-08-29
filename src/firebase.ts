@@ -549,7 +549,18 @@ export function subscribeToPublicOverlaySettings(matchId: string, callback: (set
   
   const unsubscribe = onValue(settingsRef, (snapshot) => {
     const settings = snapshot.exists() ? snapshot.val() : null;
-    console.debug('[firebase] overlay settings update', { matchId, settings });
+    console.log('[firebase] overlay settings update', { 
+      matchId, 
+      hasSettings: !!settings,
+      timestamp: settings?.updatedAt,
+      triggers: settings ? {
+        playerStats: settings.triggerPlayerStats,
+        runRate: settings.triggerRunRate,
+        matchSummary: settings.triggerMatchSummary,
+        comparison: settings.triggerComparison,
+        hideAll: settings.hideAllPanels
+      } : null
+    });
     callback(settings);
   }, (error) => {
     console.error('Failed to subscribe to public overlay settings:', error);
@@ -558,6 +569,7 @@ export function subscribeToPublicOverlaySettings(matchId: string, callback: (set
   
   return () => {
     off(settingsRef);
+    if (unsubscribe) unsubscribe();
   };
 }
 

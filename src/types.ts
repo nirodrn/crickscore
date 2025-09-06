@@ -69,7 +69,7 @@ export interface BallEvent {
   kind: 'run' | 'boundary4' | 'boundary6' | 'wide' | 'noball' | 'bye' | 'legbye' | 'wicket' | 'penalty' | 'dead';
   runsBat?: number;
   runsExtra?: number;
-  wicketType?: PlayerRef['dismissal']['type'];
+    wicketType?: 'bowled' | 'lbw' | 'caught' | 'runout-striker' | 'runout-nonstriker' | 'hitwicket' | 'stumped' | 'obstructing' | 'hit-ball-twice' | 'retired-out' | 'retired-notout';
   strikerIdBefore: string;
   nonStrikerIdBefore: string;
   bowlerId: string;
@@ -112,6 +112,7 @@ export interface InningsState {
   legalBallsInCurrentOver: number;
   freeHit: boolean;
   maxOvers?: number;
+  ballsPerOver?: number;
   isComplete: boolean;
   isInterval?: boolean;
   intervalType?: 'drinks' | 'innings' | 'lunch' | 'tea' | 'custom';

@@ -37,6 +37,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
   const striker = battingTeam.players.find(p => p.id === innings.strikerId);
   const nonStriker = battingTeam.players.find(p => p.id === innings.nonStrikerId);
   const bowler = bowlingTeam.players.find(p => p.id === innings.bowlerId);
+  const ballsPerOver = innings.ballsPerOver || 6;
 
   // Load overlay settings with real-time updates
   useEffect(() => {
@@ -243,19 +244,19 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
   };
 
   const calculateRunRate = () => {
-    const totalBalls = (innings.overNumber * 6) + innings.legalBallsInCurrentOver;
+    const totalBalls = (innings.overNumber * ballsPerOver) + innings.legalBallsInCurrentOver;
     if (totalBalls === 0) return 0;
-    return (battingTeam.score / totalBalls) * 6;
+    return (battingTeam.score / totalBalls) * ballsPerOver;
   };
 
   const calculateRequiredRunRate = () => {
     if (match.currentInnings !== 2 || !innings.target) return null;
     
-    const remainingBalls = ((innings.maxOvers || 20) * 6) - (innings.overNumber * 6 + innings.legalBallsInCurrentOver);
+    const remainingBalls = ((innings.maxOvers || 20) * ballsPerOver) - (innings.overNumber * ballsPerOver + innings.legalBallsInCurrentOver);
     if (remainingBalls <= 0) return null;
     
     const required = innings.target - battingTeam.score;
-    return Math.max(0, (required / remainingBalls) * 6);
+    return Math.max(0, (required / remainingBalls) * ballsPerOver);
   };
 
   const requiredRunRate = calculateRequiredRunRate();
@@ -379,6 +380,12 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                       </div>
                       <div className="overs-display">
                         {formatOvers(innings.overNumber, innings.legalBallsInCurrentOver)} overs
+                        {innings.ballsPerOver !== 6 && (
+                          <span className="ml-2 px-2 py-1 bg-yellow-200 text-yellow-800 rounded text-xs font-semibold">Custom balls/over: {innings.ballsPerOver}</span>
+                        )}
+                        {innings.maxOvers && (innings.maxOvers !== 20 && innings.maxOvers !== 50) && (
+                          <span className="ml-2 px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-semibold">Custom max overs: {innings.maxOvers}</span>
+                        )}
                       </div>
                     </div>
                     
@@ -413,7 +420,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                         </div>
                       ))}
                       {/* Fill remaining legal balls only if under 6 legal balls */}
-                      {Array.from({ length: Math.max(0, 6 - innings.legalBallsInCurrentOver) }, (_, index) => (
+                      {Array.from({ length: Math.max(0, ballsPerOver - innings.legalBallsInCurrentOver) }, (_, index) => (
                         <div key={`empty-${index}`} className="ball-dot empty"></div>
                       ))}
                     </div>
@@ -488,7 +495,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
               <h3 className="text-lg font-semibold mb-3">Run Rate Trend</h3>
               
               <div className="h-32 bg-black/40 rounded p-2 flex items-end justify-center space-x-1">
-                {lastSixBalls.map((ball, index) => (
+                {Array.from({ length: Math.max(0, ballsPerOver - innings.legalBallsInCurrentOver) }, (_, index) => (
                   <div
                     key={index}
                     className="bg-blue-500 rounded-t"

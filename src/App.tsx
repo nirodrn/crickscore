@@ -325,6 +325,10 @@ function App() {
       // No need to auto-assign here
     }
 
+    // Ensure ballsPerOver is set for second innings if it exists
+    if (updatedMatch.innings2) {
+      updatedMatch.innings2.ballsPerOver = updatedMatch.innings1.ballsPerOver;
+    }
     setMatch(updatedMatch);
     setMatchStarted(true);
     updateMatch(updatedMatch);
@@ -395,6 +399,7 @@ function App() {
         legalBallsInCurrentOver: 0,
         freeHit: false,
         maxOvers: updatedMatch.innings1.maxOvers,
+        ballsPerOver: updatedMatch.innings1.ballsPerOver,
         isComplete: false,
         target: firstInningsScore + 1,
         events: []

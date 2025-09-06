@@ -19,6 +19,7 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'T20' | 'ODI' | 'Test' | 'Custom' | null>(null);
   const [customOvers, setCustomOvers] = useState<number | undefined>(undefined);
+  const [customBallsPerOver, setCustomBallsPerOver] = useState<number>(6);
 
   // Load saved players from Firebase
   useEffect(() => {
@@ -163,9 +164,11 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     setSelectedFormat(format);
     if (format === 'Custom') {
       setCustomOvers(undefined);
+      setCustomBallsPerOver(6);
     } else {
       const maxOvers = format === 'T20' ? 20 : format === 'ODI' ? 50 : format === 'Test' ? undefined : undefined;
       setCustomOvers(maxOvers);
+      setCustomBallsPerOver(6); // Standard 6 balls per over for all formats
     }
   };
 
@@ -173,6 +176,7 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     if (!selectedFormat) return;
     
     updateMatchField('innings1.maxOvers', customOvers);
+    updateMatchField('innings1.ballsPerOver', customBallsPerOver);
     if (selectedFormat !== 'Custom') {
       updateMatchField('tournamentName', `${selectedFormat} Match`);
     }
@@ -180,6 +184,7 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
     // Clear selection after confirmation
     setSelectedFormat(null);
     setCustomOvers(undefined);
+    setCustomBallsPerOver(6);
   };
 
   const canStartMatch = () => {
@@ -307,18 +312,42 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
 
               {selectedFormat === 'Custom' && (
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Custom Overs per Innings
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={customOvers || ''}
-                    onChange={(e) => setCustomOvers(parseInt(e.target.value) || undefined)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Enter number of overs"
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Custom Overs per Innings
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={customOvers || ''}
+                        onChange={(e) => setCustomOvers(parseInt(e.target.value) || undefined)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Enter number of overs"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Balls per Over
+                      </label>
+                      <select
+                        value={customBallsPerOver}
+                        onChange={(e) => setCustomBallsPerOver(parseInt(e.target.value))}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      >
+                        <option value={4}>4 Balls per Over</option>
+                        <option value={5}>5 Balls per Over</option>
+                        <option value={6}>6 Balls per Over (Standard)</option>
+                        <option value={8}>8 Balls per Over</option>
+                        <option value={10}>10 Balls per Over</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Standard cricket uses 6 balls per over
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -326,12 +355,12 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                 <div className="mt-6 flex justify-center">
                   <button
                     onClick={confirmMatchFormat}
-                    disabled={selectedFormat === 'Custom' && !customOvers}
+                    disabled={selectedFormat === 'Custom' && (!customOvers || !customBallsPerOver)}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     Confirm {selectedFormat} Format
-                    {selectedFormat === 'Custom' && customOvers && ` (${customOvers} Overs)`}
-                    {selectedFormat !== 'Custom' && customOvers !== undefined && ` (${customOvers || 'Unlimited'} Overs)`}
+                    {selectedFormat === 'Custom' && customOvers && ` (${customOvers} Overs, ${customBallsPerOver} Balls)`}
+                    {selectedFormat !== 'Custom' && customOvers !== undefined && ` (${customOvers || 'Unlimited'} Overs, 6 Balls)`}
                   </button>
                 </div>
               )}
@@ -345,11 +374,13 @@ export const MatchSetup: React.FC<MatchSetupProps> = ({ match, onUpdateMatch, on
                       </div>
                       <div className="text-sm text-green-600">
                         {match.innings1.maxOvers ? `${match.innings1.maxOvers} overs per innings` : 'Unlimited overs'}
+                        {match.innings1.ballsPerOver && match.innings1.ballsPerOver !== 6 && ` • ${match.innings1.ballsPerOver} balls per over`}
                       </div>
                     </div>
                     <button
                       onClick={() => {
                         updateMatchField('innings1.maxOvers', undefined);
+                        updateMatchField('innings1.ballsPerOver', undefined);
                         updateMatchField('tournamentName', undefined);
                       }}
                       className="text-sm text-blue-600 hover:text-blue-700 underline"

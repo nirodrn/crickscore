@@ -25,6 +25,7 @@ export class CricketScorer {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
     const battingTeam = innings.battingTeam === 'A' ? match.teamA : match.teamB;
     const striker = battingTeam.players.find(p => p.id === innings.strikerId)!;
+    const ballsPerOver = this.getBallsPerOver(innings);
 
     // Add runs to team and batter
     battingTeam.score += runs;
@@ -66,7 +67,7 @@ export class CricketScorer {
     }
 
     // Check if over is complete
-    if (legal && innings.legalBallsInCurrentOver === 6) {
+    if (legal && innings.legalBallsInCurrentOver === ballsPerOver) {
       this.completeOver(innings);
     }
 
@@ -157,6 +158,7 @@ export class CricketScorer {
   static applyBye(match: MatchState, runs: number): void {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
     const battingTeam = innings.battingTeam === 'A' ? match.teamA : match.teamB;
+    const ballsPerOver = this.getBallsPerOver(innings);
 
     battingTeam.score += runs;
     battingTeam.extras.byes += runs;
@@ -185,7 +187,7 @@ export class CricketScorer {
     this.rotateStrikeIfOdd(runs, innings);
 
     if (innings.freeHit) innings.freeHit = false;
-    if (innings.legalBallsInCurrentOver === 6) this.completeOver(innings);
+    if (innings.legalBallsInCurrentOver === ballsPerOver) this.completeOver(innings);
 
     this.updateBowlerStats(match, runs, 0);
   }
@@ -193,6 +195,7 @@ export class CricketScorer {
   static applyLegBye(match: MatchState, runs: number): void {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
     const battingTeam = innings.battingTeam === 'A' ? match.teamA : match.teamB;
+    const ballsPerOver = this.getBallsPerOver(innings);
 
     battingTeam.score += runs;
     battingTeam.extras.legbyes += runs;
@@ -221,18 +224,19 @@ export class CricketScorer {
     this.rotateStrikeIfOdd(runs, innings);
 
     if (innings.freeHit) innings.freeHit = false;
-    if (innings.legalBallsInCurrentOver === 6) this.completeOver(innings);
+    if (innings.legalBallsInCurrentOver === ballsPerOver) this.completeOver(innings);
 
     this.updateBowlerStats(match, runs, 0);
   }
 
   static applyWicket(
     match: MatchState, 
-    type: PlayerRef['dismissal']['type'],
+  type: 'bowled' | 'lbw' | 'caught' | 'runout-striker' | 'runout-nonstriker' | 'hitwicket' | 'stumped' | 'obstructing' | 'hit-ball-twice' | 'retired-out' | 'retired-notout',
     fielder?: string,
     runs: number = 0
   ): boolean {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
+    const ballsPerOver = this.getBallsPerOver(innings);
     
     // On free hit, only certain dismissals are allowed
     if (innings.freeHit && !['runout-striker', 'runout-nonstriker', 'obstructing', 'hit-ball-twice'].includes(type)) {
@@ -294,7 +298,7 @@ export class CricketScorer {
     this.updateBowlerStats(match, runs, 1);
 
     // Check if over is complete
-    if (isLegalBall && innings.legalBallsInCurrentOver === 6) {
+    if (isLegalBall && innings.legalBallsInCurrentOver === ballsPerOver) {
       this.completeOver(innings);
     }
 
@@ -323,9 +327,14 @@ export class CricketScorer {
     this.rotateStrikeForOverEnd(innings);
   }
 
+  static getBallsPerOver(innings: InningsState): number {
+    return innings.ballsPerOver || 6;
+  }
+
   static endOverAndChangeBowler(innings: InningsState, newBowlerId: string): void {
-    if (innings.legalBallsInCurrentOver < 6) {
-      throw new Error('Cannot end over with fewer than 6 legal balls');
+    const ballsPerOver = this.getBallsPerOver(innings);
+    if (innings.legalBallsInCurrentOver < ballsPerOver) {
+      throw new Error(`Cannot end over with fewer than ${ballsPerOver} legal balls`);
     }
     
     innings.bowlerId = newBowlerId;
@@ -336,6 +345,7 @@ export class CricketScorer {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
     const bowlingTeam = innings.bowlingTeam === 'A' ? match.teamA : match.teamB;
     const bowler = bowlingTeam.players.find(p => p.id === innings.bowlerId)!;
+    const ballsPerOver = this.getBallsPerOver(innings);
 
     if (!bowler.bowlingStats) {
       bowler.bowlingStats = { overs: 0, balls: 0, maidens: 0, runs: 0, wickets: 0 };
@@ -353,22 +363,28 @@ export class CricketScorer {
     }
 
     // Update overs (every 6 balls)
-    if (bowler.bowlingStats.balls % 6 === 0) {
-      bowler.bowlingStats.overs = Math.floor(bowler.bowlingStats.balls / 6);
+    if (bowler.bowlingStats.balls % ballsPerOver === 0) {
+      bowler.bowlingStats.overs = Math.floor(bowler.bowlingStats.balls / ballsPerOver);
     }
   }
 
   static calculateCurrentRunRate(team: Team, overs: number, balls: number): number {
-    const totalBalls = (overs * 6) + balls;
+    // Note: This function needs innings context to get ballsPerOver
+    // For now, we'll assume 6 balls per over for backward compatibility
+    const ballsPerOver = 6; // Default assumption
+    const totalBalls = (overs * ballsPerOver) + balls;
     if (totalBalls === 0) return 0;
-    return (team.score / totalBalls) * 6;
+    return (team.score / totalBalls) * ballsPerOver;
   }
 
   static calculateRequiredRunRate(target: number, scored: number, remainingOvers: number, remainingBalls: number): number {
-    const totalRemainingBalls = (remainingOvers * 6) + remainingBalls;
+    // Note: This function needs innings context to get ballsPerOver
+    // For now, we'll assume 6 balls per over for backward compatibility
+    const ballsPerOver = 6; // Default assumption
+    const totalRemainingBalls = (remainingOvers * ballsPerOver) + remainingBalls;
     if (totalRemainingBalls === 0) return 0;
     const required = target - scored;
-    return Math.max(0, (required / totalRemainingBalls) * 6);
+    return Math.max(0, (required / totalRemainingBalls) * ballsPerOver);
   }
 
   static isInningsComplete(match: MatchState): boolean {

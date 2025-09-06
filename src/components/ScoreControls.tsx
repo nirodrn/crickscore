@@ -285,7 +285,13 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
         <div className="flex justify-center mb-4">
           <div className="cricket-over-container flex flex-wrap justify-center gap-2 max-w-lg">
             <div className="text-xs text-gray-500 w-full text-center mb-2">
-              Current Over: {innings.legalBallsInCurrentOver}/6 legal balls ({currentOverBalls.length} total deliveries)
+              Current Over: {innings.legalBallsInCurrentOver}/{innings.ballsPerOver || 6} legal balls ({currentOverBalls.length} total deliveries)
+              {innings.ballsPerOver !== 6 && (
+                <span className="ml-2 px-2 py-1 bg-yellow-200 text-yellow-800 rounded text-xs font-semibold">Custom balls/over: {innings.ballsPerOver}</span>
+              )}
+              {innings.maxOvers && (innings.maxOvers !== 20 && innings.maxOvers !== 50) && (
+                <span className="ml-2 px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-semibold">Custom max overs: {innings.maxOvers}</span>
+              )}
             </div>
             {/* Show ALL balls in current over */}
             {currentOverBalls.map((ball, index) => (

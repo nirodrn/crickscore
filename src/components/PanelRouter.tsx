@@ -16,25 +16,28 @@ interface PanelRouterProps {
 }
 
 export const PanelRouter: React.FC<PanelRouterProps> = ({ panel, match }) => {
-  const [localMatch, setLocalMatch] = React.useState<MatchState | null>(match);
 
-  // If no match provided, try to get from URL params and cache
+  // Always use the latest match prop for real-time updates
+  // If no match provided, try to get from URL params and cache (only on mount)
+  const [localMatch, setLocalMatch] = React.useState<MatchState | null>(null);
+
   React.useEffect(() => {
-    if (!localMatch) {
+    if (!match) {
       const urlParams = new URLSearchParams(window.location.search);
       const matchParam = urlParams.get('match');
-      
       if (matchParam) {
         const cachedMatch = LocalStorageManager.getCachedMatch(matchParam);
         if (cachedMatch) {
           setLocalMatch(cachedMatch);
         }
       }
+    } else {
+      setLocalMatch(null); // Clear localMatch if we have a real match prop
     }
-  }, [localMatch]);
+  }, [match]);
 
-  // Use localMatch if available, otherwise use prop
-  const activeMatch = localMatch || match;
+  // Use match prop if available, otherwise fallback to localMatch (from cache)
+  const activeMatch = match || localMatch;
 
   if (!activeMatch) {
     return (

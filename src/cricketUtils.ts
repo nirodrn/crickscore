@@ -628,15 +628,152 @@ export class CricketScorer {
 
   static undoLastEvent(match: MatchState): boolean {
     const innings = match.currentInnings === 1 ? match.innings1 : match.innings2!;
-    
     if (innings.events.length === 0) return false;
 
     const lastEvent = innings.events.pop()!;
-    
-    // This is a simplified undo - in a real implementation, you'd need to
-    // carefully reverse all the state changes made by the event
-    // For now, we'll just remove the event from the history
-    
+    const battingTeam = innings.battingTeam === 'A' ? match.teamA : match.teamB;
+    const bowlingTeam = innings.bowlingTeam === 'A' ? match.teamA : match.teamB;
+    // Undo logic for each event type
+    switch (lastEvent.kind) {
+      case 'run':
+      case 'boundary4':
+      case 'boundary6': {
+        // Subtract runs from team and batter
+        const runs = lastEvent.runsBat || 0;
+        battingTeam.score -= runs;
+        const striker = battingTeam.players.find(p => p.id === lastEvent.strikerIdBefore);
+        if (striker && striker.battingStats) {
+          striker.battingStats.runs -= runs;
+          striker.battingStats.balls = Math.max(0, striker.battingStats.balls - 1);
+          if (lastEvent.kind === 'boundary4') striker.battingStats.fours = Math.max(0, striker.battingStats.fours - 1);
+          if (lastEvent.kind === 'boundary6') striker.battingStats.sixes = Math.max(0, striker.battingStats.sixes - 1);
+        }
+        // Undo legal ball
+        if (lastEvent.legalBallInOver !== undefined) {
+          innings.legalBallsInCurrentOver = Math.max(0, innings.legalBallsInCurrentOver - 1);
+        }
+        // Undo bowler stats
+        const bowler = bowlingTeam.players.find(p => p.id === lastEvent.bowlerId);
+        if (bowler && bowler.bowlingStats) {
+          bowler.bowlingStats.runs -= runs;
+          bowler.bowlingStats.balls = Math.max(0, bowler.bowlingStats.balls - 1);
+        }
+        break;
+      }
+      case 'wide': {
+        // Subtract extras from team
+        const runs = lastEvent.runsExtra || 1;
+        battingTeam.score -= runs;
+        battingTeam.extras.wides = Math.max(0, battingTeam.extras.wides - 1);
+        // No legal ball increment for wide
+        break;
+      }
+      case 'noball': {
+        // Subtract extras and bat runs
+        const runs = (lastEvent.runsBat || 0) + 1;
+        battingTeam.score -= runs;
+        battingTeam.extras.noballs = Math.max(0, battingTeam.extras.noballs - 1);
+        // Remove bat runs from striker
+        if (lastEvent.runsBat && lastEvent.runsBat > 0) {
+          const striker = battingTeam.players.find(p => p.id === lastEvent.strikerIdBefore);
+          if (striker && striker.battingStats) {
+            striker.battingStats.runs -= lastEvent.runsBat;
+            if (lastEvent.runsBat === 4) striker.battingStats.fours = Math.max(0, striker.battingStats.fours - 1);
+            if (lastEvent.runsBat === 6) striker.battingStats.sixes = Math.max(0, striker.battingStats.sixes - 1);
+          }
+        }
+        // No legal ball increment for no-ball
+        break;
+      }
+      case 'bye': {
+        const runs = lastEvent.runsExtra || 1;
+        battingTeam.score -= runs;
+        battingTeam.extras.byes = Math.max(0, battingTeam.extras.byes - runs);
+        // Undo legal ball
+        if (lastEvent.legalBallInOver !== undefined) {
+          innings.legalBallsInCurrentOver = Math.max(0, innings.legalBallsInCurrentOver - 1);
+        }
+        // Undo striker balls
+        const striker = battingTeam.players.find(p => p.id === lastEvent.strikerIdBefore);
+        if (striker && striker.battingStats) {
+          striker.battingStats.balls = Math.max(0, striker.battingStats.balls - 1);
+        }
+        // Undo bowler balls
+        const bowler = bowlingTeam.players.find(p => p.id === lastEvent.bowlerId);
+        if (bowler && bowler.bowlingStats) {
+          bowler.bowlingStats.balls = Math.max(0, bowler.bowlingStats.balls - 1);
+        }
+        break;
+      }
+      case 'legbye': {
+        const runs = lastEvent.runsExtra || 1;
+        battingTeam.score -= runs;
+        battingTeam.extras.legbyes = Math.max(0, battingTeam.extras.legbyes - runs);
+        // Undo legal ball
+        if (lastEvent.legalBallInOver !== undefined) {
+          innings.legalBallsInCurrentOver = Math.max(0, innings.legalBallsInCurrentOver - 1);
+        }
+        // Undo striker balls
+        const striker = battingTeam.players.find(p => p.id === lastEvent.strikerIdBefore);
+        if (striker && striker.battingStats) {
+          striker.battingStats.balls = Math.max(0, striker.battingStats.balls - 1);
+        }
+        // Undo bowler balls
+        const bowler = bowlingTeam.players.find(p => p.id === lastEvent.bowlerId);
+        if (bowler && bowler.bowlingStats) {
+          bowler.bowlingStats.balls = Math.max(0, bowler.bowlingStats.balls - 1);
+        }
+        break;
+      }
+      case 'wicket': {
+        // Undo wicket
+        battingTeam.wickets = Math.max(0, battingTeam.wickets - 1);
+        // Restore striker not out
+        const striker = battingTeam.players.find(p => p.id === lastEvent.strikerIdBefore);
+        if (striker) {
+          striker.isOut = false;
+          striker.dismissal = undefined;
+          if (striker.battingStats) {
+            // Remove ball and runs if any
+            if (lastEvent.runsBat && lastEvent.runsBat > 0) {
+              battingTeam.score -= lastEvent.runsBat;
+              striker.battingStats.runs -= lastEvent.runsBat;
+            }
+            striker.battingStats.balls = Math.max(0, striker.battingStats.balls - 1);
+          }
+        }
+        // Undo legal ball
+        if (lastEvent.legalBallInOver !== undefined) {
+          innings.legalBallsInCurrentOver = Math.max(0, innings.legalBallsInCurrentOver - 1);
+        }
+        // Undo bowler stats
+        const bowler = bowlingTeam.players.find(p => p.id === lastEvent.bowlerId);
+        if (bowler && bowler.bowlingStats) {
+          if (lastEvent.runsBat && lastEvent.runsBat > 0) {
+            bowler.bowlingStats.runs -= lastEvent.runsBat;
+          }
+          bowler.bowlingStats.wickets = Math.max(0, bowler.bowlingStats.wickets - 1);
+          bowler.bowlingStats.balls = Math.max(0, bowler.bowlingStats.balls - 1);
+        }
+        break;
+      }
+      case 'penalty': {
+        // Subtract penalty runs
+        const runs = lastEvent.runsExtra || 0;
+        battingTeam.score -= runs;
+        battingTeam.extras.penalties = Math.max(0, battingTeam.extras.penalties - runs);
+        break;
+      }
+      // 'dead' does not affect state
+      default:
+        break;
+    }
+    // Optionally, restore striker/non-striker/bowler if needed
+    innings.strikerId = lastEvent.strikerIdBefore;
+    innings.nonStrikerId = lastEvent.nonStrikerIdBefore;
+    innings.bowlerId = lastEvent.bowlerId;
+    // Optionally, restore free hit state
+    innings.freeHit = lastEvent.freeHitBefore;
     return true;
   }
 

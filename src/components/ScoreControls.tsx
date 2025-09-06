@@ -11,12 +11,15 @@ interface ScoreControlsProps {
 export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMatch }) => {
   const [showWicketModal, setShowWicketModal] = useState(false);
   const [showBatsmanModal, setShowBatsmanModal] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<'striker' | 'nonStriker'>('striker');
   const [showBowlerModal, setShowBowlerModal] = useState(false);
   const [showPlayerManagement, setShowPlayerManagement] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [selectedTeamForNewPlayer, setSelectedTeamForNewPlayer] = useState<'A' | 'B'>('A');
+  const [newPlayerRole, setNewPlayerRole] = useState<'Batter' | 'Wicketkeeper' | 'Bowler' | 'All'>('Batter');
   const [customRuns, setCustomRuns] = useState('');
-  const [wicketType, setWicketType] = useState<PlayerRef['dismissal']['type']>('bowled');
+  type DismissalType = NonNullable<PlayerRef['dismissal']>['type'];
+  const [wicketType, setWicketType] = useState<DismissalType>('bowled');
   const [fielder, setFielder] = useState('');
   const [showIntervalModal, setShowIntervalModal] = useState(false);
   const [intervalType, setIntervalType] = useState<'drinks' | 'innings' | 'lunch' | 'tea' | 'custom'>('drinks');
@@ -145,7 +148,21 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
 
   const handleNewBatsman = (playerId: string) => {
     const updatedMatch = { ...match };
-    CricketScorer.setNextBatter(updatedMatch, playerId);
+    const innings = updatedMatch.currentInnings === 1 ? updatedMatch.innings1 : updatedMatch.innings2!;
+    const battingTeam = innings.battingTeam === 'A' ? updatedMatch.teamA : updatedMatch.teamB;
+    // Remove old batsman and add new one as striker or non-striker
+    if (replaceTarget === 'striker') {
+      innings.strikerId = playerId;
+    } else {
+      innings.nonStrikerId = playerId;
+    }
+    // Reset stats for new batsman
+    const player = battingTeam.players.find(p => p.id === playerId);
+    if (player) {
+      player.battingStats = { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      player.isOut = false;
+      player.dismissal = undefined;
+    }
     onUpdateMatch(updatedMatch);
     setShowBatsmanModal(false);
   };
@@ -164,10 +181,16 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
     if (!newPlayerName.trim()) return;
 
     const updatedMatch = { ...match };
+    let roles: PlayerRef['roles'] = [];
+    if (newPlayerRole === 'All') {
+      roles = ['Batter', 'Bowler', 'Wicketkeeper'];
+    } else {
+      roles = [newPlayerRole];
+    }
     const newPlayer: PlayerRef = {
       id: `${selectedTeamForNewPlayer}_${Date.now()}`,
       name: newPlayerName,
-      roles: [],
+      roles,
     };
 
     if (selectedTeamForNewPlayer === 'A') {
@@ -184,6 +207,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
 
     onUpdateMatch(updatedMatch);
     setNewPlayerName('');
+    setNewPlayerRole('Batter');
     setShowPlayerManagement(false);
   };
 
@@ -448,8 +472,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                   Dismissal Type
                 </label>
                 <select
-                  value={wicketType}
-                  onChange={(e) => setWicketType(e.target.value as PlayerRef['dismissal']['type'])}
+                  onChange={(e) => setWicketType(e.target.value as DismissalType)}
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="bowled">Bowled</option>
@@ -582,28 +605,22 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg w-96">
             <h3 className="text-lg font-semibold mb-4">Change Batsman (Anytime)</h3>
-            
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">
-                Select a new batsman to replace any current batsman:
+                Select which batsman to replace, then pick a new batsman from the list below. The new batsman will start fresh (0 runs, 0 balls).
               </p>
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <p className="text-xs text-blue-800">
-                  <strong>Note:</strong> You can change batsmen at any time during the match. 
-                  The new batsman will replace the last dismissed player or can substitute any current batsman.
-                </p>
+              <div className="flex gap-4 mb-2">
+                <label className="flex items-center gap-1">
+                  <input type="radio" name="replaceTarget" value="striker" checked={replaceTarget === 'striker'} onChange={() => setReplaceTarget('striker')} />
+                  Striker: {striker?.name}
+                </label>
+                <label className="flex items-center gap-1">
+                  <input type="radio" name="replaceTarget" value="nonStriker" checked={replaceTarget === 'nonStriker'} onChange={() => setReplaceTarget('nonStriker')} />
+                  Non-Striker: {nonStriker?.name}
+                </label>
               </div>
             </div>
-            
             <div className="space-y-2">
-              <div className="bg-gray-50 p-3 rounded mb-4">
-                <h4 className="font-medium mb-2">Current Batsmen:</h4>
-                <div className="space-y-1 text-sm">
-                  <div>Striker: {striker?.name}</div>
-                  <div>Non-Striker: {nonStriker?.name}</div>
-                </div>
-              </div>
-              
               <h4 className="font-medium mb-2">Available Batsmen:</h4>
               {availableBatsmen.map((player) => (
                 <button
@@ -617,7 +634,6 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                   )}
                 </button>
               ))}
-              
               {availableBatsmen.length === 0 && (
                 <div className="text-center py-4 text-gray-500">
                   <p>No available batsmen</p>
@@ -625,7 +641,6 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                 </div>
               )}
             </div>
-
             <button
               onClick={() => setShowBatsmanModal(false)}
               className="w-full mt-4 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded"
@@ -645,7 +660,7 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
             {/* Add New Player */}
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <h4 className="font-medium mb-3">Add New Player</h4>
-              <div className="flex space-x-2 mb-3">
+              <div className="flex flex-col sm:flex-row sm:space-x-2 mb-3 space-y-2 sm:space-y-0">
                 <select
                   value={selectedTeamForNewPlayer}
                   onChange={(e) => setSelectedTeamForNewPlayer(e.target.value as 'A' | 'B')}
@@ -661,6 +676,16 @@ export const ScoreControls: React.FC<ScoreControlsProps> = ({ match, onUpdateMat
                   className="flex-1 px-3 py-2 border border-gray-300 rounded"
                   placeholder="Player name"
                 />
+                <select
+                  value={newPlayerRole}
+                  onChange={e => setNewPlayerRole(e.target.value as any)}
+                  className="px-3 py-2 border border-gray-300 rounded"
+                >
+                  <option value="Batter">Batsman</option>
+                  <option value="Wicketkeeper">Wicket Keeper</option>
+                  <option value="Bowler">Bowler</option>
+                  <option value="All">All</option>
+                </select>
                 <button
                   onClick={handleAddNewPlayer}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"

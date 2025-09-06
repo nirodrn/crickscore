@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Award } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
 // These interfaces define the shape of the data we expect for the match and players.
@@ -54,8 +54,22 @@ interface WinnerPanelProps {
   panelAnimation?: string;
 }
 
+// --- TEAM SCORE CARD SUB-COMPONENT ---
+const TeamScoreCard = ({ team, color, isWinner }: { team: Team, color: string, isWinner: boolean }) => (
+  <div className={`bg-black/40 p-5 rounded-2xl border ${isWinner ? 'border-white/30' : 'border-white/10'} transition-all duration-300 ${isWinner ? 'shadow-lg' : ''}`}>
+    <div className="flex justify-between items-center">
+      <p className="font-bold text-xl text-white">{team.name}</p>
+      {isWinner && <span className="text-xs font-bold bg-white/90 rounded-full px-2 py-0.5" style={{color: color}}>WINNER</span>}
+    </div>
+    <p className="font-mono text-4xl font-extrabold mt-2" style={{ color }}>
+      {team.score}<span className="text-white/40 text-3xl font-medium">/{team.wickets}</span>
+    </p>
+  </div>
+);
+
+
 // --- WINNER PANEL COMPONENT ---
-// This component displays the final match result, including the winner and top performers.
+// This component displays the final match result with an enhanced, beautiful design.
 
 export const WinnerPanel: React.FC<WinnerPanelProps> = ({ 
   match, 
@@ -104,28 +118,6 @@ export const WinnerPanel: React.FC<WinnerPanelProps> = ({
   
   const winnerDetails = getWinnerDetails();
 
-  const getManOfTheMatch = () => {
-    if (!winnerDetails.isComplete) return null;
-    const allPlayers = [...teamA.players, ...teamB.players];
-    let manOfTheMatch = null;
-    let maxPoints = -1;
-
-    allPlayers.forEach(player => {
-      const runs = player.battingStats?.runs || 0;
-      const wickets = player.bowlingStats?.wickets || 0;
-      const points = (runs * 1) + (wickets * 20);
-
-      if (points > maxPoints) {
-        maxPoints = points;
-        manOfTheMatch = player;
-      }
-    });
-
-    return manOfTheMatch;
-  };
-
-  const manOfTheMatch = getManOfTheMatch();
-
   const panelStyle = {
     color: overlaySettings?.styleSettings?.panelTextColor || '#ffffff',
     fontFamily: 'Inter, sans-serif'
@@ -136,75 +128,61 @@ export const WinnerPanel: React.FC<WinnerPanelProps> = ({
   const winnerColor = winnerDetails.team?.id === 'A' ? team1Color : team2Color;
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm ${panelAnimation || ''}`} style={panelStyle}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl ${panelAnimation || ''}`} style={panelStyle}>
         <style>
             {`
-                @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-                .fade-in-animate { animation: fadeIn 0.5s ease-out forwards; }
-                @keyframes shine { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-                .shine-effect {
-                    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-                    background-size: 200% 100%;
-                    animation: shine 5s infinite linear;
+                @keyframes fadeIn { 
+                    from { opacity: 0; transform: translateY(20px) scale(0.98); } 
+                    to { opacity: 1; transform: translateY(0) scale(1); } 
+                }
+                .fade-in-animate { animation: fadeIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+
+                @keyframes pulseTrophy {
+                  0%, 100% { transform: scale(1); }
+                  50% { transform: scale(1.1); }
+                }
+                .pulse-trophy-animate { animation: pulseTrophy 2s ease-in-out infinite; }
+                
+                .gradient-border::before {
+                  content: '';
+                  position: absolute;
+                  top: 0; right: 0; bottom: 0; left: 0;
+                  z-index: -1;
+                  margin: -2px; 
+                  border-radius: inherit; 
+                  background: linear-gradient(145deg, ${winnerColor || '#c0c0c0'}, ${winnerColor ? `${winnerColor}40` : '#333'}, transparent);
                 }
             `}
         </style>
-      <div className="w-full max-w-6xl bg-[#1a1a1a] rounded-2xl shadow-2xl border border-white/10 overflow-hidden fade-in-animate">
-        <div className="grid grid-cols-1 md:grid-cols-5">
+      <div className="w-full max-w-2xl bg-gray-900/50 rounded-3xl shadow-2xl overflow-hidden fade-in-animate relative gradient-border">
+        <div className="p-10 flex flex-col items-center text-center relative">
+            <div 
+              className="absolute top-0 left-0 w-full h-full opacity-10" 
+              style={{
+                background: `radial-gradient(circle at 50% 0%, ${winnerColor || '#555'} 0%, transparent 70%)`
+              }}
+            ></div>
+            
+            <Trophy className="h-24 w-24 mx-auto pulse-trophy-animate" style={{ color: winnerColor || '#c0c0c0', filter: `drop-shadow(0 0 20px ${winnerColor || '#c0c0c0'})` }} />
+            
+            <p className="mt-4 text-lg font-medium text-white/60 tracking-wider">
+              {winnerDetails.team ? `WINNER` : 'MATCH UPDATE'}
+            </p>
 
-            {/* Man of the Match Section */}
-            <div className="md:col-span-2 bg-black/20 p-6 flex flex-col items-center justify-center text-center border-r border-white/10">
-                <h3 className="text-sm font-bold tracking-widest text-yellow-400 uppercase mb-4">Man of the Match</h3>
-                {manOfTheMatch ? (
-                    <>
-                        <div className="relative">
-                            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 flex items-center justify-center">
-                                <Award className="h-16 w-16 text-yellow-400"/>
-                            </div>
-                        </div>
-                        <p className="text-3xl font-bold text-white mt-4">{manOfTheMatch.name}</p>
-                        <div className="mt-2 text-lg text-white/70">
-                            <span className="font-semibold">{manOfTheMatch.battingStats?.runs || 0}</span> Runs
-                            <span className="mx-2">|</span>
-                            <span className="font-semibold">{manOfTheMatch.bowlingStats?.wickets || 0}</span> Wickets
-                        </div>
-                    </>
-                ) : (
-                    <div className="text-center text-white/50 p-4">
-                        <p>To be decided...</p>
-                    </div>
-                )}
+            <h2 className="text-6xl font-black mt-2 text-white" style={{ textShadow: `0 0 30px ${winnerColor || '#000'}` }}>
+                {winnerDetails.team ? winnerDetails.team.name.toUpperCase() : winnerDetails.margin}
+            </h2>
+            
+            {winnerDetails.team && (
+              <p className="text-3xl text-white/80 mt-2 font-light">
+                won {winnerDetails.margin}
+              </p>
+            )}
+            
+            <div className="mt-12 w-full grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+              <TeamScoreCard team={teamA} color={team1Color} isWinner={winnerDetails.team?.id === 'A'} />
+              <TeamScoreCard team={teamB} color={team2Color} isWinner={winnerDetails.team?.id === 'B'} />
             </div>
-
-            {/* Winner Announcement & Scores */}
-            <div className="md:col-span-3 p-8 flex flex-col text-center relative overflow-hidden">
-                <div className="absolute inset-0 opacity-5 shine-effect" style={{background: `radial-gradient(circle at top right, ${winnerColor || '#555'} 0%, transparent 50%)`}}></div>
-                <Trophy className="h-16 w-16 mx-auto" style={{ color: winnerColor || '#c0c0c0' }} />
-                <h2 className="text-5xl font-extrabold mt-4" style={{ color: winnerColor || '#ffffff' }}>
-                    {winnerDetails.team ? `${winnerDetails.team.name}` : winnerDetails.margin}
-                </h2>
-                <p className="text-2xl text-white/80 mt-1">
-                    {winnerDetails.team ? `won ${winnerDetails.margin}` : ' '}
-                </p>
-                
-                <div className="mt-8 w-full max-w-md mx-auto space-y-3">
-                    <div className="flex justify-between items-center bg-black/30 p-3 rounded-lg border border-white/10">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2 h-8 rounded" style={{backgroundColor: team1Color}}></div>
-                            <p className="font-semibold text-white text-lg">{teamA.name}</p>
-                        </div>
-                        <p className="font-bold text-2xl text-white">{teamA.score}/{teamA.wickets}</p>
-                    </div>
-                    <div className="flex justify-between items-center bg-black/30 p-3 rounded-lg border border-white/10">
-                        <div className="flex items-center gap-3">
-                           <div className="w-2 h-8 rounded" style={{backgroundColor: team2Color}}></div>
-                            <p className="font-semibold text-white text-lg">{teamB.name}</p>
-                        </div>
-                        <p className="font-bold text-2xl text-white">{teamB.score}/{teamB.wickets}</p>
-                    </div>
-                </div>
-            </div>
-
         </div>
       </div>
     </div>
@@ -212,3 +190,4 @@ export const WinnerPanel: React.FC<WinnerPanelProps> = ({
 };
 
 export default WinnerPanel;
+

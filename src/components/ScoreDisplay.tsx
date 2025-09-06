@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MatchState, BallDisplayItem } from '../types';
+import { MatchState as ImportedMatchState } from '../types';
 import { CricketScorer } from '../cricketUtils';
-import { LocalStorageManager } from '../utils/localStorage';
+// import { LocalStorageManager } from '../utils/localStorage';
 import { PlayerStatsPanel } from './PlayerStatsPanel';
 import { MatchSummaryPanel } from './MatchSummaryPanel';
 import { TeamComparisonPanel } from './TeamComparisonPanel';
@@ -10,10 +10,16 @@ import { WicketFallChartPanel } from './WicketFallChartPanel';
 import { BatsmanSummaryPanel } from './BatsmanSummaryPanel';
 import { BowlerSummaryPanel } from './BowlerSummaryPanel';
 import { WinnerPanel } from './WinnerPanel';
-import { Clock, Target, Zap } from 'lucide-react';
+import { Clock } from 'lucide-react';
+// Extend window type for panel timeout
+declare global {
+  interface Window {
+    __panelTimeout?: ReturnType<typeof setTimeout>;
+  }
+}
 
 interface ScoreDisplayProps {
-  match: MatchState;
+  match: ImportedMatchState;
   overlayMode?: boolean;
   forcePanel?: string;
 }
@@ -158,13 +164,23 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
 
   const showPanelWithAnimation = (panelType: string) => {
     console.log(`[ScoreDisplay] Showing panel: ${panelType}`);
+    // If the panel is already visible, just reset the timer and animation
     setPanelAnimation('animate-fadeIn');
-    setShowFullscreenPanel(panelType);
-    
+    setShowFullscreenPanel(prev => {
+      if (prev === panelType) {
+        // Already showing, just reset animation
+        return prev;
+      }
+      return panelType;
+    });
+
+    // Clear any previous timer
+    if (window.__panelTimeout) {
+      clearTimeout(window.__panelTimeout);
+    }
     const duration = (realtimeSettings?.fullscreenDuration || 10) * 1000;
     console.log(`[ScoreDisplay] Panel will hide after ${duration}ms`);
-    
-    setTimeout(() => {
+    window.__panelTimeout = setTimeout(() => {
       hidePanelWithAnimation();
     }, duration);
   };
@@ -190,7 +206,14 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
         case 'matchSummary':
           return <MatchSummaryPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
         case 'comparison':
-          return <TeamComparisonPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
+          // Patch: Provide default for maxOvers if undefined
+          const patchedMatchComparison = {
+            ...match,
+            innings1: { ...match.innings1, maxOvers: match.innings1.maxOvers ?? 20 },
+            innings2: match.innings2 ? { ...match.innings2, maxOvers: match.innings2.maxOvers ?? 20 } : undefined,
+            isComplete: match.isComplete ?? false
+          };
+          return <TeamComparisonPanel match={patchedMatchComparison} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
         case 'wicketFall':
           return <WicketFallChartPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
         case 'batsmanSummary':
@@ -198,7 +221,12 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
         case 'bowlerSummary':
           return <BowlerSummaryPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
         case 'winner':
-          return <WinnerPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
+          // Patch: Provide default for isComplete if undefined
+          const patchedMatchWinner = {
+            ...match,
+            isComplete: match.isComplete ?? false
+          };
+          return <WinnerPanel match={patchedMatchWinner} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />;
         default:
           return null;
       }
@@ -251,7 +279,16 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
           <MatchSummaryPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
         {showFullscreenPanel === 'comparison' && (
-          <TeamComparisonPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
+          <TeamComparisonPanel
+            match={{
+              ...match,
+              innings1: { ...match.innings1, maxOvers: match.innings1.maxOvers ?? 20 },
+              innings2: match.innings2 ? { ...match.innings2, maxOvers: match.innings2.maxOvers ?? 20 } : undefined,
+              isComplete: match.isComplete ?? false
+            }}
+            overlaySettings={overlaySettings}
+            panelAnimation={panelAnimation}
+          />
         )}
         {showFullscreenPanel === 'wicketFall' && (
           <WicketFallChartPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
@@ -263,7 +300,11 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
           <BowlerSummaryPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
         )}
         {showFullscreenPanel === 'winner' && (
-          <WinnerPanel match={match} overlaySettings={overlaySettings} panelAnimation={panelAnimation} />
+          <WinnerPanel
+            match={{ ...match, isComplete: match.isComplete ?? false }}
+            overlaySettings={overlaySettings}
+            panelAnimation={panelAnimation}
+          />
         )}
 
         {/* International Standard Footer Overlay */}
@@ -368,7 +409,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                           key={index}
                           className={`ball-dot ${ball.type}`}
                         >
-                          {ball.value === '•' ? '' : ball.value}
+                          {ball.type === 'wide' ? 'wd' : (ball.type === 'wicket' ? 'W' : (ball.value === '•' ? '' : ball.value))}
                         </div>
                       ))}
                       {/* Fill remaining legal balls only if under 6 legal balls */}
@@ -639,15 +680,11 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ match, overlayMode =
                 key={index}
                 className={`ball-indicator ${ball.type} ${ball.isFreeHit ? 'free-hit-blink' : ''}`}
               >
-                {ball.value}
+                {ball.type === 'wide' ? 'wide' : (ball.type === 'wicket' ? 'W' : ball.value)}
               </div>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Match Status */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="text-center">
           <div className="text-xl font-semibold text-gray-800">
             {CricketScorer.getMatchResult(match)}

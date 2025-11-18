@@ -30,14 +30,14 @@ function normalizeMatchState(match: any): MatchState {
 }
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCRRBLrD9_4c-d_H1A0Ed279YDC9EvvTqo",
-  authDomain: "cricketzcore.firebaseapp.com",
-  projectId: "cricketzcore",
-  storageBucket: "cricketzcore.firebasestorage.app",
-  messagingSenderId: "1057255365604",
-  appId: "1:1057255365604:web:5aefc789071800783185f1",
-  measurementId: "G-ZRYMGKMRD3",
-  databaseURL: "https://cricketzcore-default-rtdb.firebaseio.com/",
+  apiKey: " ",
+  authDomain: " ",
+  projectId: " ",
+  storageBucket: " ",
+  messagingSenderId: " ",
+  appId: " ",
+  measurementId: "G- ",
+  databaseURL: " ",
   hostingURL: "https://cricketzcore.web.app"
 };
 

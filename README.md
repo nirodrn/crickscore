@@ -43,14 +43,7 @@ https://cricketzcore.web.app
 
 ---
 
-## 📸 Screenshots
 
-* Scoring Interface
-* Broadcast Overlay
-* Analysis Charts
-* Match Summary
-
----
 
 ## 🛠️ Tech Stack
 

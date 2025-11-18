@@ -176,8 +176,8 @@ git push origin feature/AmazingFeature
 
 ## 📄 License
 
-MIT License. See LICENSE.
+MIT License. By DETZ.
 
 ---
 
-Built with ❤️ by **Nirodha**
+Built with ❤️ by **Nirod RA**
